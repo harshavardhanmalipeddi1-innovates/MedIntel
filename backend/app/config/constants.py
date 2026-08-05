@@ -1,1 +1,5 @@
-# Constants placeholder
+MAX_DIFFERENTIALS = 10
+MIN_CONFIDENCE_THRESHOLD = 0.05
+API_V1_PREFIX = "/api/v1"
+APP_NAME = "MedIntel"
+APP_VERSION = "1.0.0"
