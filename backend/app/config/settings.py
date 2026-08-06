@@ -24,6 +24,12 @@ class Settings(BaseSettings):
     # Optional Google API key (used by Vertex AI if needed)
     GOOGLE_API_KEY: str = ""
 
+    # Differential Diagnosis Settings
+    TOP_K: int = 5
+    MIN_PROBABILITY: float = 0.10
+    HIGH_CONFIDENCE_THRESHOLD: float = 0.85
+    MEDIUM_CONFIDENCE_THRESHOLD: float = 0.60
+
     class Config:
         env_file = ".env"
         env_file_encoding = "utf-8"
