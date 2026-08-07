@@ -15,7 +15,8 @@ class Settings(BaseSettings):
     XGB_MODEL_PATH: str = "models/xgboost/model.pkl"
     XGB_FEATURE_COLUMNS_PATH: str = "models/xgboost/feature_columns.json"
     XGB_DISEASE_LABELS_PATH: str = "models/xgboost/disease_labels.json"
-    KNOWLEDGE_BASE_PATH: str = "knowledge_base/"
+    KNOWLEDGE_BASE_PATH: str = "backend/knowledge/diseases"
+    KNOWLEDGE_BASE_ENABLED: bool = True
     # AI provider configuration (environment variables)
     AI_PROVIDER: str = "vertex"
     PRIMARY_REASONING_MODEL: str = "medgemma"

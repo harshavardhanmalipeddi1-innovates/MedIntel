@@ -5,6 +5,7 @@ from backend.app.config.settings import settings
 from backend.services.ranking_engine import RankingEngine
 from backend.services.threshold_engine import ThresholdEngine
 from backend.services.confidence_engine import ConfidenceEngine
+from backend.services.knowledge_base import KnowledgeBaseService
 
 logger = logging.getLogger(__name__)
 
@@ -20,6 +21,7 @@ class DifferentialDiagnosisManager:
             high_threshold=settings.HIGH_CONFIDENCE_THRESHOLD,
             medium_threshold=settings.MEDIUM_CONFIDENCE_THRESHOLD
         )
+        self.knowledge_base = KnowledgeBaseService()
         logger.info("DifferentialDiagnosisManager initialized")
         
     def generate_differential(self, raw_predictions: Dict[str, float]) -> Dict[str, Any]:
@@ -36,15 +38,21 @@ class DifferentialDiagnosisManager:
         ranked_predictions = self.ranking_engine.rank(filtered_predictions)
         logger.debug("Ranking complete")
         
-        # 3. Confidence Mapping
+        # 3. Confidence Mapping & Knowledge Base Lookup
         results = []
         for item in ranked_predictions:
             confidence = self.confidence_engine.evaluate(item["probability"])
+            kb_entry = self.knowledge_base.get_disease(item["disease"])
+            knowledge_dict = kb_entry.model_dump() if kb_entry else None
+            if not knowledge_dict:
+                logger.info(f"Knowledge unavailable for disease: {item['disease']}")
+                
             results.append({
                 "rank": item["rank"],
                 "disease": item["disease"],
                 "probability": item["probability"],
-                "confidence": confidence
+                "confidence": confidence,
+                "knowledge": knowledge_dict
             })
             
         logger.info("Differential diagnosis generated successfully")
