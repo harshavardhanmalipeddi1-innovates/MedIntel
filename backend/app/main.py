@@ -15,4 +15,11 @@ def health_check():
       "version": "1.0"
     }
 
-app.include_router(prediction_router)
+from backend.app.api.reasoning import router as reasoning_router
+from backend.app.api.verification import router as verification_router
+from backend.app.api.treatment import router as treatment_router
+
+app.include_router(prediction_router, prefix="/api/v1")
+app.include_router(reasoning_router, prefix="/api/v1/clinical")
+app.include_router(verification_router, prefix="/api/v1/clinical")
+app.include_router(treatment_router, prefix="/api/v1/clinical")

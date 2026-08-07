@@ -1,38 +1,68 @@
-from pydantic_settings import BaseSettings
 from typing import List
 
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        case_sensitive=True,
+        extra="ignore",
+    )
+
+    # Application
     APP_NAME: str = "MedIntel"
     APP_VERSION: str = "1.0.0"
     API_V1_PREFIX: str = "/api/v1"
-    CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://localhost:5173"]
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:secret@localhost:5432/medintel"
-    # JWT secret is loaded from .env; placeholder used in .env.example
+    CORS_ORIGINS: List[str] = [
+        "http://localhost:3000",
+        "http://localhost:5173",
+    ]
+
+    # Database
+    DATABASE_URL: str = (
+        "postgresql+asyncpg://postgres:secret@localhost:5432/medintel"
+    )
+
+    # Authentication
     JWT_SECRET: str = "YOUR_GENERATED_SECRET_HERE"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
-    # Model paths (relative to project root)
+
+    # XGBoost model artifacts
     XGB_MODEL_PATH: str = "models/xgboost/model.pkl"
     XGB_FEATURE_COLUMNS_PATH: str = "models/xgboost/feature_columns.json"
     XGB_DISEASE_LABELS_PATH: str = "models/xgboost/disease_labels.json"
+
+    # Knowledge Base
     KNOWLEDGE_BASE_PATH: str = "backend/knowledge/diseases"
     KNOWLEDGE_BASE_ENABLED: bool = True
-    # AI provider configuration (environment variables)
-    AI_PROVIDER: str = "vertex"
-    PRIMARY_REASONING_MODEL: str = "medgemma"
-    FALLBACK_REASONING_MODEL: str = "gemini"
-    MODEL_VERSION: str = "latest"
-    # Optional Google API key (used by Vertex AI if needed)
-    GOOGLE_API_KEY: str = ""
 
-    # Differential Diagnosis Settings
+    # Clinical reasoning
+    AI_REASONING_ENABLED: bool = False
+    AI_PROVIDER: str = "local"
+    PRIMARY_REASONING_MODEL: str = "google/medgemma-1.5-4b-it"
+    LOCAL_MEDGEMMA_MODEL_ID: str = "google/medgemma-1.5-4b-it"
+    MEDGEMMA_DEVICE: str = "auto"
+    MEDGEMMA_BASE_URL: str = "http://127.0.0.1:8080"
+    MEDGEMMA_MODEL_PATH: str = "C:/Dev/Models/MedGemma/medgemma-1.5-4b-it-q4_0.gguf"
+    MEDGEMMA_TIMEOUT_SECONDS: int = 120
+    MEDGEMMA_MAX_RETRIES: int = 1
+
+    # Reasoning policy
+    REASONING_PROMPT_VERSION: str = "clinical_reasoning_v1"
+    REASONING_MAX_CANDIDATES: int = 5
+
+
+    # Existing generic model version
+    MODEL_VERSION: str = "latest"
+
+    # Differential Diagnosis
     TOP_K: int = 5
     MIN_PROBABILITY: float = 0.10
     HIGH_CONFIDENCE_THRESHOLD: float = 0.85
     MEDIUM_CONFIDENCE_THRESHOLD: float = 0.60
 
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
 
 settings = Settings()
