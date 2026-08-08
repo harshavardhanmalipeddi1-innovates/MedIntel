@@ -1,14 +1,53 @@
-version: '3.8'
-services:
+﻿services:
+
+  medgemma:
+    image: ghcr.io/ggml-org/llama.cpp:server@sha256:bedbb0f38ff2c84893d2df350473fd438875d9ec23d23ce98e96df240e77d6ba
+    container_name: medintel-medgemma
+    restart: unless-stopped
+
+    command:
+      - --model
+      - /models/medgemma-1.5-4b-it-q4_0.gguf
+      - --alias
+      - google/medgemma-1.5-4b-it
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8080"
+      - --ctx-size
+      - "1024"
+      - --threads
+      - "4"
+      - --parallel
+      - "1"
+
+    volumes:
+      - type: bind
+        source: ${MEDGEMMA_MODEL_PATH}
+        target: /models/medgemma-1.5-4b-it-q4_0.gguf
+        read_only: true
+
+    ports:
+      - "8080:8080"
+
   backend:
-    build: ./backend
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+
+    container_name: medintel-backend
+    restart: unless-stopped
+
+    depends_on:
+      - medgemma
+
+    environment:
+      AI_REASONING_ENABLED: "true"
+      AI_PROVIDER: "local"
+      MEDGEMMA_MODEL_ID: "google/medgemma-1.5-4b-it"
+      MEDGEMMA_BASE_URL: "http://medgemma:8080"
+      MEDGEMMA_TIMEOUT_SECONDS: "360"
+      MEDGEMMA_MAX_RETRIES: "0"
+
     ports:
       - "8000:8000"
-  frontend:
-    build: ./frontend
-    ports:
-      - "3000:3000"
-  db:
-    image: postgres:15-alpine
-    ports:
-      - "5432:5432"

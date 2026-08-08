@@ -64,3 +64,67 @@ def test_safety_validator_candidate_added_or_removed(sample_request):
     )
     with pytest.raises(ValueError, match="Safety Violation: Number of candidates was changed"):
         SafetyValidator.validate(sample_request, response)
+
+
+
+@pytest.mark.parametrize(
+    "unsafe_text",
+    [
+        "This is the most likely diagnosis.",
+        "The diagnosis is Pneumonia.",
+        "These findings confirm the diagnosis.",
+        "The evidence supports this conclusion.",
+    ],
+)
+def test_safety_validator_rejects_authoritative_diagnostic_wording(
+    sample_request,
+    unsafe_text,
+):
+    response = ClinicalReasoningResponse(
+        candidate_reasoning=[
+            CandidateReasoning(
+                rank=1,
+                disease="Pneumonia",
+                rationale=unsafe_text,
+            ),
+            CandidateReasoning(
+                rank=2,
+                disease="Asthma",
+                rationale="Requires clinician verification.",
+            ),
+        ],
+        reasoning_summary="Further clinical verification is required.",
+        requires_doctor_review=True,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="Authoritative diagnostic wording",
+    ):
+        SafetyValidator.validate(sample_request, response)
+
+
+def test_safety_validator_allows_explicit_diagnostic_uncertainty(
+    sample_request,
+):
+    response = ClinicalReasoningResponse(
+        candidate_reasoning=[
+            CandidateReasoning(
+                rank=1,
+                disease="Pneumonia",
+                rationale=(
+                    "Diagnosis is not confirmed. Findings support "
+                    "consideration of this existing candidate."
+                ),
+            ),
+            CandidateReasoning(
+                rank=2,
+                disease="Asthma",
+                rationale="Requires clinician verification.",
+            ),
+        ],
+        reasoning_summary="Further clinical verification is required.",
+        requires_doctor_review=True,
+    )
+
+    assert SafetyValidator.validate(sample_request, response)

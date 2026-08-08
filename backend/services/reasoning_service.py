@@ -68,17 +68,20 @@ class ReasoningService:
                 request,
                 "Local clinical reasoning provider is unavailable.",
             )
-        except ValueError:
-            logger.warning("Clinical reasoning output failed parsing or safety validation.")
-            return self._build_degraded_response(
-                request,
-                "Clinical reasoning output failed safety validation.",
-            )
         except ValidationError:
             logger.warning("Clinical reasoning output failed schema validation.")
             return self._build_degraded_response(
                 request,
                 "Clinical reasoning output failed schema validation.",
+            )
+        except ValueError as exc:
+            logger.warning(
+                "Clinical reasoning output failed parsing or safety validation: %s",
+                exc,
+            )
+            return self._build_degraded_response(
+                request,
+                "Clinical reasoning output failed safety validation.",
             )
         except Exception:
             logger.exception("Unexpected clinical reasoning service failure.")
@@ -98,5 +101,3 @@ class ReasoningService:
             limitations=["AI Reasoning engine was unavailable or failed validation.", reason],
             requires_doctor_review=True
         )
-
-
