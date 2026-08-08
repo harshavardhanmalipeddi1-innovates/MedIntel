@@ -8,49 +8,48 @@ import numpy as np
 from scipy import sparse
 import xgboost as xgb
 
-ARTIFACT_DIR = Path(__file__).resolve().parent
+ARTIFACT_DIR = Path(__file__).resolve().parents[2] / "respiratory"
+MODEL_DIR = ARTIFACT_DIR / "model"
 bundle = joblib.load(
-    ARTIFACT_DIR / "preprocessing_bundle.joblib"
+    ARTIFACT_DIR / "preprocessing" / "preprocessing_bundle.joblib"
 )
 with open(
-    ARTIFACT_DIR / "portable_metadata.json",
+    ARTIFACT_DIR / "metadata" / "portable_metadata.json",
     "r",
     encoding="utf-8",
 ) as file:
     metadata = json.load(file)
 
 primary_model = xgb.XGBClassifier()
-primary_model.load_model(
-    ARTIFACT_DIR / metadata["primary_model_file"]
-)
+primary_model.load_model(MODEL_DIR / metadata["primary_model_file"])
+
 scope_model = xgb.XGBClassifier()
-scope_model.load_model(
-    ARTIFACT_DIR / metadata["scope_model_file"]
-)
+scope_model.load_model(MODEL_DIR / metadata["scope_model_file"])
+
 
 ddx_models = {}
-for condition, relative_path in metadata[
-    "ddx_model_files"
-].items():
-    model = xgb.XGBRegressor()
-    model.load_model(ARTIFACT_DIR / relative_path)
-    ddx_models[condition] = model
+for condition, relative_path in metadata["ddx_model_files"].items():
+    model_path = MODEL_DIR / relative_path
+    if model_path.is_file():
+        model = xgb.XGBRegressor()
+        model.load_model(model_path)
+        ddx_models[condition] = model
 
 inclusion_models = {}
-for condition, relative_path in metadata[
-    "inclusion_model_files"
-].items():
-    model = xgb.XGBClassifier()
-    model.load_model(ARTIFACT_DIR / relative_path)
-    inclusion_models[condition] = model
+for condition, relative_path in metadata["inclusion_model_files"].items():
+    model_path = MODEL_DIR / relative_path
+    if model_path.is_file():
+        model = xgb.XGBClassifier()
+        model.load_model(model_path)
+        inclusion_models[condition] = model
 
 critical_head_models = {}
-for condition, relative_path in metadata[
-    "critical_head_model_files"
-].items():
-    model = xgb.XGBClassifier()
-    model.load_model(ARTIFACT_DIR / relative_path)
-    critical_head_models[condition] = model
+for condition, relative_path in metadata["critical_head_model_files"].items():
+    model_path = MODEL_DIR / relative_path
+    if model_path.is_file():
+        model = xgb.XGBClassifier()
+        model.load_model(model_path)
+        critical_head_models[condition] = model
 
 CLASS_NAMES = bundle["class_names"]
 CLASS_TO_INDEX = {
@@ -292,13 +291,14 @@ def suggest_next_questions(
 
 
 def base_ddx_scores(matrix, primary):
-    scores = np.array([
-        max(
-            0.0,
-            float(ddx_models[condition].predict(matrix)[0]),
-        )
-        for condition in CLASS_NAMES
-    ], dtype=np.float32)
+    scores_list = []
+    for condition in CLASS_NAMES:
+        if condition in ddx_models:
+            score = max(0.0, float(ddx_models[condition].predict(matrix)[0]))
+        else:
+            score = 0.0
+        scores_list.append(score)
+    scores = np.array(scores_list, dtype=np.float32)
     if scores.sum() > 0:
         return scores / scores.sum()
     return primary.copy()
