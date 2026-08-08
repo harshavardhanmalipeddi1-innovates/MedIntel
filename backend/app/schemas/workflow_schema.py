@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from backend.app.schemas.reasoning_schema import ClinicalReasoningResponse
 from backend.app.schemas.verification_schema import ClinicalVerificationResponse
 from backend.app.schemas.treatment_schema import TreatmentDraftResponse
+from uuid import uuid4
 
 
 class StrictSchema(BaseModel):
@@ -41,7 +42,8 @@ class ClinicalWorkflowResponse(StrictSchema):
 
     treatment_draft: Optional[TreatmentDraftResponse] = None
 
-    workflow_status: str = "COMPLETED"
+    workflow_status: str = Field(default="COMPLETED")
+    workflow_id: str = Field(default_factory=lambda: str(uuid4()))
 
     requires_doctor_review: bool = True
 

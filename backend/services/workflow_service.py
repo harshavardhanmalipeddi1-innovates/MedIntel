@@ -44,7 +44,9 @@ class WorkflowService:
         Execute the complete clinical workflow.
         """
 
-        logger.info("MedIntel clinical workflow started")
+        from uuid import uuid4
+        workflow_id = str(uuid4())
+        logger.info("MedIntel clinical workflow started workflow_id=%s", workflow_id)
 
         patient_context = request.patient_context
 
@@ -96,6 +98,7 @@ class WorkflowService:
             )
 
             return ClinicalWorkflowResponse(
+                workflow_id=workflow_id,
                 success=False,
                 predictions=[],
                 workflow_status="NO_DIFFERENTIAL",
