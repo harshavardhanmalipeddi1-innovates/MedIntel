@@ -44,7 +44,7 @@ services:
     environment:
       AI_REASONING_ENABLED: "true"
       AI_PROVIDER: "local"
-      MEDGEMMA_MODEL_ID: "google/medgemma-1.5-4b-it"
+      LOCAL_MEDGEMMA_MODEL_ID: "google/medgemma-1.5-4b-it"
       MEDGEMMA_BASE_URL: "http://medgemma:8080"
       MEDGEMMA_TIMEOUT_SECONDS: "360"
       MEDGEMMA_MAX_RETRIES: "0"
