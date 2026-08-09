@@ -75,3 +75,15 @@ More model text.
     parsed = ResponseParser.parse(raw)
 
     assert parsed == {"status": "final"}
+
+
+
+def test_prompt_builder_contains_non_authoritative_guardrails(
+    sample_request,
+):
+    context_str = ContextBuilder.build_context(sample_request)
+    prompt = PromptBuilder.build_prompt(context_str)
+
+    assert "most likely diagnosis" in prompt
+    assert "findings support consideration of this candidate" in prompt
+    assert "must not be reinterpreted as diagnostic certainty" in prompt
