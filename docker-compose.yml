@@ -27,8 +27,8 @@ services:
         target: /models/medgemma-1.5-4b-it-q4_0.gguf
         read_only: true
 
-    ports:
-      - "8080:8080"
+    expose:
+      - "8080"
 
   backend:
     build:
