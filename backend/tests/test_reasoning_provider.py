@@ -60,3 +60,48 @@ def test_reasoning_service_rejects_unknown_provider(monkeypatch):
 
     with pytest.raises(ValueError, match="Unsupported AI_PROVIDER"):
         ReasoningService()
+
+
+
+@pytest.mark.asyncio
+async def test_reasoning_service_classifies_schema_validation(
+    monkeypatch,
+):
+    from backend.app.config.settings import settings
+    from backend.services.reasoning_service import ReasoningService
+
+    monkeypatch.setattr(settings, "AI_PROVIDER", "local")
+    monkeypatch.setattr(settings, "AI_REASONING_ENABLED", True)
+
+    service = ReasoningService()
+
+    async def invalid_schema_response(_prompt: str) -> str:
+        return (
+            '{"candidate_reasoning": [], '
+            '"reasoning_summary": "Schema test", '
+            '"requires_doctor_review": true, '
+            '"unexpected_field": "rejected"}'
+        )
+
+    monkeypatch.setattr(
+        service.provider,
+        "generate_reasoning",
+        invalid_schema_response,
+    )
+
+    request = ClinicalReasoningRequest(
+        patient_context={"test_case": True},
+        differential=[
+            {
+                "rank": 1,
+                "disease": "Pneumonia",
+                "probability": 0.82,
+                "confidence": "High",
+                "knowledge": None,
+            }
+        ],
+    )
+
+    response = await service.generate_reasoning(request)
+
+    assert "schema validation" in response.reasoning_summary.lower()

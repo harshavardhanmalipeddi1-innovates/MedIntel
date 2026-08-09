@@ -20,10 +20,6 @@ class Settings(BaseSettings):
         "http://localhost:5173",
     ]
 
-    # Database
-    DATABASE_URL: str = (
-        "postgresql+asyncpg://postgres:secret@localhost:5432/medintel"
-    )
 
     # Authentication
     JWT_SECRET: str = "YOUR_GENERATED_SECRET_HERE"
@@ -46,7 +42,7 @@ class Settings(BaseSettings):
     LOCAL_MEDGEMMA_MODEL_ID: str = "google/medgemma-1.5-4b-it"
     MEDGEMMA_DEVICE: str = "auto"
     MEDGEMMA_BASE_URL: str = "http://127.0.0.1:8080"
-    MEDGEMMA_MODEL_PATH: str = "C:/Dev/Models/MedGemma/medgemma-1.5-4b-it-q4_0.gguf"
+    MEDGEMMA_MODEL_PATH: str = ""
     MEDGEMMA_TIMEOUT_SECONDS: int = 120
     MEDGEMMA_MAX_RETRIES: int = 1
 

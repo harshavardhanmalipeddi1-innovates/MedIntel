@@ -35,3 +35,19 @@ def test_supported_prediction_structure():
     assert isinstance(result, dict)
     assert "predictions" in result
     assert result["model"] == "xgboost"
+
+def test_prediction_service_uses_trained_class_names():
+    service = PredictionService()
+
+    probabilities = np.array([0.20, 0.10, 0.70])
+
+    predictions = service._format_predictions(probabilities)
+
+    assert predictions[0]["condition"] == "Bronchiectasis"
+    assert predictions[1]["condition"] == "Acute COPD exacerbation / infection"
+    assert predictions[2]["condition"] == "Acute laryngitis"
+
+    assert all(
+        not item["condition"].startswith("condition_")
+        for item in predictions
+    )
