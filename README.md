@@ -9,9 +9,9 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-In%20Development-orange.svg)]()
 [![Backend](https://img.shields.io/badge/backend-FastAPI-009688.svg)](https://fastapi.tiangolo.com)
-[![Frontend](https://img.shields.io/badge/frontend-React%20%2B%20TypeScript-3178C6.svg)](https://react.dev)
+[![Frontend](https://img.shields.io/badge/frontend-Phase%205%20Pending-lightgrey.svg)]()
 [![ML](https://img.shields.io/badge/ML-XGBoost-EC6C00.svg)](https://xgboost.readthedocs.io)
-[![LLM](https://img.shields.io/badge/LLM-MedGemma%20%7C%20Vertex%20AI-4285F4.svg)](https://cloud.google.com/vertex-ai)
+[![LLM](https://img.shields.io/badge/LLM-Local%20MedGemma-6A5ACD.svg)]()
 [![Database](https://img.shields.io/badge/database-PostgreSQL-336791.svg)](https://www.postgresql.org)
 [![Deployment](https://img.shields.io/badge/deployment-Docker-2496ED.svg)](https://www.docker.com)
 
@@ -42,11 +42,13 @@
 
 ## Project Description
 
-**MedIntel** is an AI-powered Clinical Decision Support System (CDSS) designed to assist licensed healthcare professionals in making faster, better-informed clinical decisions.
+**MedIntel** is an AI-powered Clinical Decision Support System (CDSS) designed to assist licensed healthcare professionals with structured clinical decision support.
 
-By combining a structured machine learning pipeline (XGBoost) with the clinical reasoning capabilities of Google's **MedGemma** large language model (via Vertex AI), MedIntel provides differential diagnosis rankings, investigation suggestions, red flag detection, and treatment guidance — all grounded in a curated clinical knowledge base.
+The current prototype combines an **XGBoost** differential-diagnosis model with **Google MedGemma 1.5 4B IT running locally through llama.cpp**.
 
-> **⚠️ Clinical Disclaimer**: MedIntel is a decision support tool only. It does not diagnose, prescribe, or replace the clinical judgement of a licensed medical professional. All final clinical decisions remain the sole responsibility of the treating physician.
+XGBoost remains the authoritative ranking component. MedGemma receives the already-ranked candidates and produces constrained clinical reasoning without adding, removing, re-ranking, or changing the model probabilities.
+
+> **Clinical Disclaimer:** MedIntel is a decision-support prototype only. It does not autonomously diagnose, prescribe, order medication, or determine patient disposition. All final clinical decisions remain with the treating clinician.
 
 ---
 
@@ -62,104 +64,117 @@ We believe AI in healthcare must be explainable, trustworthy, and deeply collabo
 
 ## Why MedIntel
 
-| Challenge | MedIntel's Approach |
+MedIntel is being designed around a narrow clinical decision-support role rather than autonomous medical decision-making.
+
+| Design Need | Current MedIntel Approach |
 |---|---|
-| High diagnostic cognitive load | Ranked differential diagnoses from structured clinical input |
-| Inconsistent guideline adherence | Curated knowledge base grounded in clinical guidelines |
-| Missed red flags in complex cases | Dedicated red flag detection module |
-| Lack of structured clinical reasoning | MedGemma-powered natural language reasoning trace |
-| Time-consuming report generation | Automated structured clinical report drafts for doctor review |
-| Investigation planning gaps | Evidence-linked investigation and lab test suggestions |
+| Structured differential support | XGBoost produces the authoritative ranked disease candidates and probabilities |
+| Explainable clinician-facing context | Local MedGemma generates constrained reasoning from the existing ranked candidates |
+| Protection against LLM ranking drift | Safety rules prevent MedGemma from adding, removing, re-ranking, or changing candidate probabilities |
+| Local prototype inference | MedGemma runs locally through llama.cpp; the GGUF file remains outside Git |
+| Reproducible engineering workflow | Docker Compose, a digest-pinned backend image, and a validated dependency lock are used |
+| Human oversight | AI output is parsed and safety-validated, and doctor review remains mandatory |
+
+Features such as the doctor-facing frontend, application-level PostgreSQL persistence, authentication, broader knowledge-base validation, report workflows, and clinical validation remain later work.
 
 ---
 
 ## Key Features
 
-### ✅ Implemented
-- Enterprise-grade modular project architecture
-- Clean domain-separated backend module structure
-- Dedicated ML pipeline directory (`feature_builder`, `preprocessor`, `model_loader`, `predictor`, `postprocessor`)
-- Structured knowledge base with clinical domain separation
-- Curated prompt library for MedGemma clinical reasoning
-- Git version control with professional branch strategy
-- Private GitHub repository with `.gitignore` and licensing
+### Implemented
 
-### 🔄 In Progress
-- FastAPI backend API layer (v1 endpoints)
-- XGBoost disease prediction service
-- Knowledge base content population (diseases, symptoms, investigations)
-- MedGemma clinical reasoning integration (Vertex AI)
-- Doctor-facing dashboard (React + TypeScript)
+- Modular FastAPI backend with versioned clinical API endpoints
+- XGBoost respiratory differential-diagnosis pipeline
+- Trained disease-label mapping for model outputs
+- Local MedGemma reasoning provider using llama.cpp
+- Safety validation that preserves XGBoost candidates, ranks, and probabilities
+- Structured doctor-review and approval workflow
+- Clinical reasoning prompt packaged into the backend Docker image
+- Four-service Docker Compose topology: `backend`, `medgemma`, `db`, and `frontend`
+- Digest-pinned Python backend image
+- Reproducible backend dependency constraints
+- Automated backend test suite
+- End-to-end engineering workflow verification
 
-### 🗓️ Planned (Version 2+)
+### In Progress
+
+- Expansion and validation of clinical knowledge-base content
+- Phase 4.6 documentation and second-machine collaboration verification
+
+### Planned
+
+- Phase 5 doctor-facing frontend implementation
+- Application-level PostgreSQL persistence
+- Authentication and production access-control integration
+- Broader clinical validation and model evaluation
+
 - Patient management and longitudinal records
 - Structured clinical report generation and export
 - Analytics and clinical outcome tracking
 - Follow-up and review scheduling recommendations
-- Role-based authentication and access control
-- Physiotherapy and rehabilitation support module
-- Referral criteria and specialist escalation guidance
-- Comprehensive audit logging for medico-legal compliance
-- FHIR-compliant EHR/EMR integration
+- Physiotherapy and rehabilitation support
+- Referral and specialist escalation support
+- Comprehensive medico-legal audit logging
+- FHIR-compliant EHR/EMR interoperability
 
 ---
 
 ## Clinical Workflow
 
-MedIntel follows a structured, clinician-guided workflow from patient registration to clinical report:
+The currently verified **engineering workflow** is:
 
 ```mermaid
 flowchart TD
-    A[👨‍⚕️ Doctor] --> B[Patient Registration]
-    B --> C[Medical History Collection]
-    C --> D[Vitals Recording]
-    D --> E[Symptom Documentation]
-    E --> F[Physical Examination Findings]
-    F --> G[⚙️ XGBoost Prediction Engine]
-    G --> H[Top-Ranked Differential Diagnoses]
-    H --> I[Knowledge Base Lookup]
-    I --> J[🤖 MedGemma Clinical Reasoning]
-    J --> K[Suggested Investigations]
-    J --> L[🚨 Red Flag Detection]
-    J --> M[Treatment Guidance]
-    K --> N[👨‍⚕️ Doctor Review]
-    L --> N
-    M --> N
-    N --> O[📄 Clinical Report]
+    A[Structured Patient Context] --> B[Feature Builder]
+    B --> C[Preprocessing Artifacts]
+    C --> D[XGBoost Prediction]
+    D --> E[Authoritative Ranked Candidates + Probabilities]
+    E --> F[Knowledge / Clinical Context]
+    F --> G[Local MedGemma via llama.cpp]
+    G --> H[Structured Reasoning Parse]
+    H --> I[Safety Validation]
+    I --> J[Doctor Review / Approval Workflow]
 ```
 
-At every stage, the clinician remains in control. MedIntel augments clinical reasoning — it never replaces it.
+XGBoost remains authoritative for the ranked disease candidates and probabilities. MedGemma is used only for constrained clinical reasoning around those candidates.
+
+The end-to-end workflow has been verified with synthetic engineering input. This verification is **not clinical validation** and does not establish diagnostic efficacy, treatment efficacy, regulatory approval, or production readiness.
 
 ---
 
 ## AI Pipeline
 
-MedIntel's AI pipeline is a two-stage hybrid system combining structured prediction with language-based reasoning:
+MedIntel currently uses a two-stage hybrid decision-support pipeline.
 
 ```mermaid
 flowchart LR
-    A[Structured Clinical Input\nSymptoms · Vitals · History · Examination] --> B[Feature Builder]
+    A[Structured Clinical Input] --> B[Feature Builder]
     B --> C[Preprocessor]
     C --> D[XGBoost Classifier]
-    D --> E[Top-N Differential Diagnoses\nwith Confidence Scores]
-    E --> F[Knowledge Base Enrichment\nGuidelines · Investigations · Red Flags]
-    F --> G[MedGemma — Vertex AI\nClinical Reasoning LLM]
-    G --> H[Reasoning Output\nInvestigations · Red Flags · Treatment · Summary]
-    H --> I[Postprocessor\nStructured JSON Response]
-    I --> J[Doctor Dashboard]
+    D --> E[Ranked Differential Candidates + Probabilities]
+    E --> F[Knowledge / Clinical Context]
+    F --> G[Local MedGemma via llama.cpp]
+    G --> H[Constrained Clinical Reasoning]
+    H --> I[Safety Validation]
+    I --> J[Doctor Review]
 ```
 
-### ML Component — XGBoost
-- Accepts structured numerical and categorical clinical features
-- Trained on curated medical datasets
-- Returns a probability-ranked list of differential diagnoses
-- Lightweight, fast inference suitable for clinical time constraints
+### ML Component - XGBoost
 
-### LLM Component — MedGemma (Vertex AI)
-- Google's medically-specialised large language model
-- Receives enriched clinical context from the knowledge base
-- Produces structured reasoning: investigations, red flags, treatment guidance, patient summary
-- Outputs reviewed and presented to the clinician for approval
+- Performs the authoritative disease ranking
+- Uses trained preprocessing artifacts and respiratory model artifacts
+- Returns ranked candidate diseases with probabilities
+- Candidate names are mapped using the trained model metadata
+
+### LLM Component - Local MedGemma
+
+- Model identifier: `google/medgemma-1.5-4b-it`
+- Current prototype inference is local through `llama.cpp`
+- The GGUF model file is stored outside Git
+- MedGemma receives existing XGBoost-ranked candidates
+- It must not add, remove, re-rank, or change candidate probabilities
+- Its output is parsed and safety-validated before being returned
+- Doctor review remains mandatory
 
 ---
 
@@ -167,156 +182,105 @@ flowchart LR
 
 ```mermaid
 graph TB
-    subgraph Frontend["Frontend — React + TypeScript"]
-        UI[Doctor Dashboard]
-        Forms[Clinical Input Forms]
-        Report[Report Viewer]
+    subgraph Frontend["Frontend"]
+        FE[Phase 5 Placeholder]
     end
 
-    subgraph Backend["Backend — FastAPI (Python)"]
-        API[REST API v1]
-        Modules[Business Modules]
-        ML[ML Pipeline]
-        Config[Configuration Layer]
+    subgraph Backend["Backend - FastAPI"]
+        API[REST API]
+        WF[Clinical Workflow Service]
+        ML[XGBoost Pipeline]
+        RS[Reasoning Service]
+        KB[Knowledge Resources]
     end
 
-    subgraph Data["Data Layer"]
-        PG[(PostgreSQL)]
-        KB[Knowledge Base\nJSON Documents]
+    subgraph LocalAI["Local AI"]
+        MG[MedGemma 1.5 4B IT]
+        LLAMA[llama.cpp Server]
     end
 
-    subgraph AI["AI Services"]
-        XGB[XGBoost Model]
-        VAI[Vertex AI\nMedGemma]
+    subgraph Data["Infrastructure"]
+        PG[(PostgreSQL 15)]
     end
 
-    UI --> API
-    Forms --> API
-    API --> Modules
-    Modules --> ML
-    Modules --> KB
-    Modules --> PG
-    ML --> XGB
-    Modules --> VAI
-    API --> Report
+    FE --> API
+    API --> WF
+    WF --> ML
+    WF --> KB
+    WF --> RS
+    RS --> LLAMA
+    LLAMA --> MG
 ```
 
-The architecture follows a clean separation of concerns: the frontend is stateless and communicates exclusively via versioned REST APIs. The backend is organized into discrete domain modules with a dedicated ML pipeline. The AI layer is loosely coupled, allowing model upgrades without disrupting the API contract.
+The currently verified backend and local-AI path runs through Docker Compose.
+
+The PostgreSQL container is available as infrastructure, but application-level clinical persistence has **not yet been established**.
+
+The frontend Docker service is currently a **Phase 5 placeholder** and does not yet provide the doctor dashboard.
 
 ---
 
 ## Technology Stack
 
-| Layer | Technology | Purpose |
+| Layer | Current Technology | Status |
 |---|---|---|
-| **Backend** | FastAPI (Python) | High-performance REST API framework |
-| **Frontend** | React + TypeScript | Type-safe, component-based UI |
-| **Database** | PostgreSQL | Relational data store for clinical records |
-| **ML Model** | XGBoost | Structured tabular disease prediction |
-| **LLM** | MedGemma (Vertex AI) | Clinical language reasoning |
-| **Cloud AI** | Google Vertex AI | Managed LLM inference and deployment |
-| **Containerization** | Docker | Local and production containerization |
-| **Orchestration** | Kubernetes *(planned v2)* | Production-scale container orchestration |
-| **Version Control** | Git + GitHub | Source code management and collaboration |
-| **CI** | GitHub Actions | Automated testing and code quality checks |
+| Backend | FastAPI / Python 3.12.13 | Implemented |
+| ML Model | XGBoost 3.2.0 | Implemented |
+| ML Preprocessing | scikit-learn 1.6.1 | Implemented |
+| Data Processing | pandas 2.3.3 | Implemented |
+| Clinical Reasoning | MedGemma 1.5 4B IT | Implemented locally |
+| LLM Runtime | llama.cpp server | Implemented locally |
+| Containerization | Docker Compose | Implemented |
+| Backend Dependency Reproducibility | `backend/constraints.txt` | Implemented |
+| Database Infrastructure | PostgreSQL 15 Alpine | Container available; application persistence pending |
+| Frontend | React + TypeScript target | Phase 5 pending |
+| Version Control | Git + GitHub | Implemented |
+
+### Runtime Reproducibility
+
+The backend Docker environment is intentionally reproducible:
+
+- Python base image is pinned by immutable image digest.
+- Training-critical runtime versions are aligned with recovered model-training provenance:
+  - Python `3.12.13`
+  - XGBoost `3.2.0`
+  - scikit-learn `1.6.1`
+  - pandas `2.3.3`
+- `backend/constraints.txt` records the exact validated deployment dependency set.
+
+The complete constraints file represents the **validated deployment environment**. It should not be interpreted as proof that every transitive dependency was present at the same version during original model training.
 
 ---
 
 ## Project Structure
 
+Key paths in the current repository:
+
+```text
+MedIntel/
+|-- backend/
+|   |-- app/
+|   |-- services/
+|   |-- knowledge/
+|   |-- models/
+|   |-- tests/
+|   |-- Dockerfile
+|   |-- requirements.txt
+|   `-- constraints.txt
+|-- frontend/
+|   |-- .gitkeep
+|   `-- Dockerfile          # Phase 5 placeholder
+|-- prompts/
+|   `-- clinical_reasoning_v1.txt
+|-- docs/
+|-- notebooks/
+|-- .dockerignore
+|-- .env.example
+|-- docker-compose.yml
+`-- README.md
 ```
-medintel/
-├── .github/
-│   └── workflows/
-│       └── ci.yml                  # GitHub Actions CI pipeline
-├── backend/
-│   ├── app/
-│   │   ├── api/v1/endpoints/       # REST API route handlers
-│   │   ├── config/                 # Application settings and constants
-│   │   ├── db/                     # Database session and migrations
-│   │   ├── ml/                     # XGBoost ML pipeline modules
-│   │   └── modules/                # Domain business logic modules
-│   │       ├── authentication/
-│   │       ├── patient_management/
-│   │       ├── clinical_assessment/
-│   │       ├── prediction_engine/
-│   │       ├── knowledge_engine/
-│   │       ├── investigation_engine/
-│   │       ├── reasoning_engine/
-│   │       └── report_engine/
-│   ├── Dockerfile
-│   └── requirements.txt
-├── frontend/
-│   ├── src/
-│   │   ├── assets/                 # Icons, images, themes
-│   │   ├── components/             # UI, layout, forms, clinical components
-│   │   ├── pages/                  # Application pages
-│   │   ├── hooks/                  # Custom React hooks
-│   │   ├── services/               # API communication layer
-│   │   └── types/                  # TypeScript type definitions
-│   ├── Dockerfile
-│   └── package.json
-├── models/
-│   └── xgboost/
-│       ├── artifacts/              # Trained model binaries
-│       ├── config/                 # Feature columns, disease labels, metadata
-│       ├── evaluation/             # Model evaluation results
-│       ├── metadata/               # Model versioning and lineage
-│       └── training/               # Training scripts and configuration
-├── datasets/
-│   ├── raw/                        # Original source datasets (gitignored)
-│   └── processed/                  # Cleaned, feature-engineered datasets
-├── knowledge_base/
-│   ├── diseases/
-│   ├── symptoms/
-│   ├── physical_exam/
-│   ├── investigations/
-│   ├── lab_tests/
-│   ├── imaging/
-│   ├── medications/
-│   ├── physiotherapy/
-│   ├── red_flags/
-│   ├── clinical_guidelines/
-│   ├── referral_criteria/
-│   └── followup/
-├── prompts/                        # MedGemma prompt templates
-│   ├── reasoning/
-│   ├── patient_summary/
-│   ├── investigations/
-│   ├── treatment/
-│   ├── red_flags/
-│   ├── report/
-│   ├── doctor_summary/
-│   ├── missing_information/
-│   ├── physiotherapy/
-│   ├── followup/
-│   └── compare/
-├── specs/
-│   ├── openapi/swagger.json        # API specification
-│   └── MASTER_BLUEPRINT.md        # Master architecture document
-├── tests/
-│   ├── unit/
-│   └── integration/
-├── deployment/docker/
-├── scripts/
-│   ├── data_pipeline/
-│   └── model_training/
-├── docs/
-│   ├── architecture.md
-│   ├── api.md
-│   ├── database.md
-│   ├── clinical_workflow.md
-│   └── data_dictionary.md
-├── notebooks/
-│   ├── eda.ipynb
-│   └── model_training.ipynb
-├── .env.example
-├── .gitignore
-├── docker-compose.yml
-├── LICENSE
-├── README.md
-└── requirements.txt
-```
+
+Large model files, local datasets, virtual environments, secrets, and `.env` are not intended for Git.
 
 ---
 
@@ -324,21 +288,21 @@ medintel/
 
 ### Prerequisites
 
-Ensure the following are installed on your development machine:
+For the currently validated Docker workflow:
 
-| Tool | Minimum Version | Notes |
-|---|---|---|
-| Python | 3.10+ | Backend runtime |
-| Node.js | 18+ | Frontend toolchain |
-| Docker | 24+ | Container runtime |
-| PostgreSQL | 15+ | Or use the Docker Compose service |
-| Git | 2.40+ | Version control |
-| Google Cloud SDK | Latest | Required for Vertex AI access |
+| Requirement | Notes |
+|---|---|
+| Docker Desktop / Docker Engine with Compose | Required |
+| Git | Required for repository workflow |
+| MedGemma GGUF file | Stored locally outside Git |
+| Python | Optional for local test execution |
+
+No cloud AI SDK is required for the current local MedGemma inference path.
 
 ### Clone the Repository
 
 ```bash
-git clone https://github.com/<your-username>/MedIntel.git
+git clone https://github.com/harshavardhanmalipeddi1-innovates/MedIntel.git
 cd MedIntel
 ```
 
@@ -346,58 +310,58 @@ cd MedIntel
 
 ## Installation
 
-### 1. Configure Environment Variables
+### 1. Create the local environment file
 
-```bash
-cp .env.example .env
+Copy `.env.example` to `.env`.
+
+PowerShell:
+
+```powershell
+Copy-Item .env.example .env
 ```
 
-Edit `.env` and populate the following variables:
+### 2. Configure the local MedGemma model path
+
+Set `MEDGEMMA_MODEL_PATH` in `.env` to the local GGUF file.
+
+Example:
 
 ```env
-POSTGRES_DB=medintel
-POSTGRES_USER=your_db_user
-POSTGRES_PASSWORD=your_db_password
-VERTEX_AI_PROJECT_ID=your-gcp-project-id
-VERTEX_AI_LOCATION=us-central1
-SECRET_KEY=your_jwt_secret_key
+MEDGEMMA_MODEL_PATH=C:/Dev/Models/MedGemma/medgemma-1.5-4b-it-q4_0.gguf
 ```
 
-### 2. Start Services with Docker Compose
+Keep the GGUF file outside the repository. Do not commit it.
+
+The Docker Compose configuration enables the local reasoning provider for the containerized workflow and connects the backend to the `medgemma` service internally.
+
+### 3. Build and start the services
 
 ```bash
-docker-compose up --build
+docker compose --env-file .env up -d --build
 ```
 
-This starts:
-- **Backend** API at `http://localhost:8000`
-- **Frontend** UI at `http://localhost:3000`
-- **PostgreSQL** database at `localhost:5432`
+Current Compose services:
 
-### 3. Backend Setup (Local Development)
+- `medgemma` - local llama.cpp inference server
+- `backend` - FastAPI API
+- `db` - PostgreSQL infrastructure
+- `frontend` - Phase 5 placeholder container
 
-```bash
-cd backend
-python -m venv .venv
-source .venv/bin/activate        # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000
-```
+MedGemma may require several minutes to load on CPU-only development machines.
 
-### 4. Frontend Setup (Local Development)
+### 4. Backend API
 
-```bash
-cd frontend
-npm install
-npm run dev
-```
+After the backend starts:
 
-### 5. API Documentation
+- API health: `http://localhost:8000/health`
+- Swagger UI: `http://localhost:8000/docs`
+- ReDoc: `http://localhost:8000/redoc`
 
-Once the backend is running, access the interactive API documentation:
+### Current Limitations
 
-- **Swagger UI**: `http://localhost:8000/docs`
-- **ReDoc**: `http://localhost:8000/redoc`
+- The frontend service does not yet contain the doctor-facing React application.
+- PostgreSQL is running as infrastructure, but application-level patient persistence is not yet claimed.
+- The local MedGemma prototype is an engineering integration and has not itself established clinical efficacy or regulatory validation.
 
 ---
 
@@ -449,42 +413,45 @@ chore:    Maintenance
 
 ## Roadmap
 
-### Version 1 — MVP (Current)
+### Version 1 - MVP
 
 | Milestone | Status |
 |---|---|
-| Project architecture and repository setup | ✅ Complete |
-| Backend API layer (FastAPI) | 🔄 In Progress |
-| XGBoost prediction service | 🔄 In Progress |
-| Knowledge base content | 🔄 In Progress |
-| MedGemma reasoning integration | 🔄 In Progress |
-| Doctor dashboard (React) | 🔄 In Progress |
-| Docker deployment | 🔄 In Progress |
-| Unit and integration tests | 🔄 In Progress |
+| Project architecture and repository setup | Complete |
+| FastAPI backend API layer | Complete |
+| XGBoost respiratory prediction service | Complete |
+| Trained disease-label mapping | Complete |
+| Local MedGemma reasoning integration | Complete |
+| Reasoning safety validation | Complete |
+| Docker backend / MedGemma integration | Complete |
+| Reproducible backend Docker environment | Complete |
+| Backend unit and integration test suite | Complete |
+| Doctor-facing frontend | Phase 5 - Pending |
+| Knowledge-base expansion | In Progress |
+| PostgreSQL application persistence | Pending |
+| Authentication / access control integration | Pending |
 
-### Version 2 — Clinical Expansion
+The completed end-to-end workflow checks are **engineering verification using synthetic test input**. They are not clinical validation.
 
-| Feature | Status |
-|---|---|
-| Patient management and longitudinal records | 🗓️ Planned |
-| Structured clinical report generation | 🗓️ Planned |
-| Role-based access control (RBAC) | 🗓️ Planned |
-| Investigation suggestions with evidence links | 🗓️ Planned |
-| Follow-up and review scheduling | 🗓️ Planned |
-| Physiotherapy and rehabilitation guidance | 🗓️ Planned |
-| Referral escalation criteria | 🗓️ Planned |
-| Audit logging | 🗓️ Planned |
-| Clinical analytics dashboard | 🗓️ Planned |
+### Version 2 - Clinical Expansion
 
-### Version 3 — Enterprise & Interoperability
+- Patient management and longitudinal records
+- Structured clinical report generation
+- Role-based access control
+- Investigation support with evidence links
+- Follow-up and review workflows
+- Physiotherapy and rehabilitation guidance
+- Referral escalation criteria
+- Audit logging
+- Clinical analytics
 
-| Feature | Status |
-|---|---|
-| FHIR-compliant EHR/EMR integration | 🗓️ Planned |
-| Kubernetes production orchestration | 🗓️ Planned |
-| ICD-10 and SNOMED CT terminology support | 🗓️ Planned |
-| Multi-tenant hospital deployment | 🗓️ Planned |
-| Model retraining pipeline | 🗓️ Planned |
+### Version 3 - Enterprise & Interoperability
+
+- FHIR-compliant EHR/EMR integration
+- Production-scale orchestration
+- ICD-10 and SNOMED CT terminology support
+- Multi-tenant hospital deployment
+- Model retraining and governance pipeline
 
 ---
 
@@ -505,13 +472,20 @@ Full project documentation is maintained in the [`/docs`](docs/) directory:
 
 ## Security & Privacy Philosophy
 
-MedIntel is designed with patient safety and data privacy as first-order requirements, not afterthoughts.
+MedIntel treats clinical safety, privacy, and clinician oversight as first-order requirements.
 
-- **No patient data is stored by AI models.** Clinical data sent to Vertex AI is governed by Google Cloud's enterprise data processing agreements.
-- **Environment secrets** are never committed to the repository. All credentials are managed through environment variables and a secrets management strategy.
-- **Authentication** will enforce role-based access control, ensuring only authorised clinical personnel access patient records.
-- **Audit logging** (planned) will record all clinical queries and AI interactions for medico-legal review.
-- **The AI never makes a final diagnosis.** All AI outputs are clearly labelled as decision support and require explicit physician review and sign-off.
+- The current MedGemma inference path is local.
+- Secrets and local `.env` files must not be committed to Git.
+- GGUF model files are stored outside the repository and mounted read-only into the MedGemma container.
+- XGBoost remains authoritative for candidate ranking and probabilities.
+- MedGemma is not permitted to independently add, remove, re-rank, or modify those candidates.
+- AI reasoning output passes structured parsing and safety validation.
+- Doctor review remains mandatory.
+- MedIntel does not autonomously diagnose, prescribe, order medication, or determine disposition.
+- PostgreSQL infrastructure is present, but production patient-data persistence and its security controls remain future work.
+- Authentication, audit logging, deployment hardening, access control, retention policy, and regulatory compliance must be completed before any production clinical use.
+
+The existing prototype and engineering tests should not be interpreted as evidence of clinical validation, regulatory approval, or production readiness.
 
 ---
 
