@@ -1,4 +1,4 @@
-FROM python:3.12.13-slim
+FROM python:3.12.13-slim@sha256:229a2c5bfa27522db7815ea81f9bed70af17ccb9de9fc7ad142b1877b5830d36
 
 WORKDIR /app
 
@@ -7,8 +7,9 @@ ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
 
 COPY backend/requirements.txt /app/backend/requirements.txt
+COPY backend/constraints.txt /app/backend/constraints.txt
 
-RUN pip install --no-cache-dir -r /app/backend/requirements.txt
+RUN pip install --no-cache-dir -r /app/backend/requirements.txt -c /app/backend/constraints.txt
 
 COPY backend/app /app/backend/app
 COPY backend/services /app/backend/services
