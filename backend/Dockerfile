@@ -6,14 +6,15 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
 
-COPY requirements.txt /app/backend/requirements.txt
+COPY backend/requirements.txt /app/backend/requirements.txt
 
 RUN pip install --no-cache-dir -r /app/backend/requirements.txt
 
-COPY app /app/backend/app
-COPY services /app/backend/services
-COPY knowledge /app/backend/knowledge
-COPY models /app/backend/models
+COPY backend/app /app/backend/app
+COPY backend/services /app/backend/services
+COPY backend/knowledge /app/backend/knowledge
+COPY backend/models /app/backend/models
+COPY prompts /app/prompts
 
 EXPOSE 8000
 
