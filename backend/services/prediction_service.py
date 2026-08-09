@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Callable
 import numpy as np
 import xgboost as xgb
 
+from backend.app.ml.artifact_manager import ArtifactManager
 from backend.services.model_loader import ModelLoader
 
 logger = logging.getLogger(__name__)
@@ -24,11 +25,36 @@ class PredictionService:
 
     def __init__(self) -> None:
         self._loader = ModelLoader()
+        self._artifact_manager = ArtifactManager()
 
         self._primary_model: xgb.Booster | None = None
         self._supported_model: xgb.Booster | None = None
+        self._class_names: List[str] | None = None
 
         logger.info("PredictionService initialized")
+
+    def _get_class_names(self) -> List[str]:
+        """Return the trained model class names in authoritative output order."""
+
+        if self._class_names is None:
+            metadata = self._artifact_manager.get_metadata()
+            class_names = metadata.get("class_names")
+
+            if (
+                not isinstance(class_names, list)
+                or not class_names
+                or not all(
+                    isinstance(name, str) and name.strip()
+                    for name in class_names
+                )
+            ):
+                raise RuntimeError(
+                    "Respiratory model metadata contains invalid class_names."
+                )
+
+            self._class_names = list(class_names)
+
+        return self._class_names
 
     def _ensure_model(
         self,
@@ -71,6 +97,12 @@ class PredictionService:
             return []
 
         probabilities = probabilities.flatten()
+        class_names = self._get_class_names()
+
+        if probabilities.size > len(class_names):
+            raise RuntimeError(
+                "Prediction output contains more classes than model metadata."
+            )
 
         results = []
 
@@ -88,7 +120,7 @@ class PredictionService:
 
             results.append(
                 {
-                    "condition": f"condition_{index}",
+                    "condition": class_names[index],
                     "probability": probability,
                     "confidence": confidence
                 }
