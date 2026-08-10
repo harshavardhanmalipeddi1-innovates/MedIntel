@@ -9,7 +9,7 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-In%20Development-orange.svg)]()
 [![Backend](https://img.shields.io/badge/backend-FastAPI-009688.svg)](https://fastapi.tiangolo.com)
-[![Frontend](https://img.shields.io/badge/frontend-Phase%205%20Pending-lightgrey.svg)]()
+[![Frontend](https://img.shields.io/badge/frontend-Phase%205%20Ready-22c55e.svg)]()
 [![ML](https://img.shields.io/badge/ML-XGBoost-EC6C00.svg)](https://xgboost.readthedocs.io)
 [![LLM](https://img.shields.io/badge/LLM-Local%20MedGemma-6A5ACD.svg)]()
 [![Database](https://img.shields.io/badge/database-PostgreSQL-336791.svg)](https://www.postgresql.org)
@@ -103,7 +103,6 @@ Features such as the doctor-facing frontend, application-level PostgreSQL persis
 
 ### Planned
 
-- Phase 5 doctor-facing frontend implementation
 - Application-level PostgreSQL persistence
 - Authentication and production access-control integration
 - Broader clinical validation and model evaluation
@@ -216,7 +215,7 @@ The currently verified backend and local-AI path runs through Docker Compose.
 
 The PostgreSQL container is available as infrastructure, but application-level clinical persistence has **not yet been established**.
 
-The frontend Docker service is currently a **Phase 5 placeholder** and does not yet provide the doctor dashboard.
+The frontend Docker service is now serving the Phase 5 UI and workflow integration for the clinician-facing prototype.
 
 ---
 

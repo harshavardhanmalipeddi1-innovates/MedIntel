@@ -60,6 +60,33 @@ const syntheticPayload = {
   },
 };
 
+export async function runClinicalWorkflow(
+  patientContext: Record<string, unknown>,
+): Promise<WorkflowResponse> {
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), 420_000);
+
+  try {
+    const response = await fetch("/api/v1/clinical/workflow", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ patient_context: patientContext }),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const detail = await response.text();
+      throw new Error(`Workflow request failed (${response.status}): ${detail}`);
+    }
+
+    return (await response.json()) as WorkflowResponse;
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
 export async function runVerifiedSyntheticWorkflow(): Promise<WorkflowResponse> {
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), 420_000);

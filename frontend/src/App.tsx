@@ -21,7 +21,11 @@ import {
   Routes,
 } from "react-router-dom";
 import "./styles.css";
-import { runVerifiedSyntheticWorkflow, type WorkflowResponse } from "./api";
+import {
+  runClinicalWorkflow,
+  runVerifiedSyntheticWorkflow,
+  type WorkflowResponse,
+} from "./api";
 
 type PageMeta = {
   title: string;
@@ -154,7 +158,7 @@ function AppShell() {
 
           <div className="topbar-status">
             <span className="status-dot" />
-            <span>Phase 5 - Frontend implementation</span>
+            <span>Phase 5 - Frontend ready</span>
           </div>
 
           <div className="topbar-actions">
@@ -179,26 +183,11 @@ function AppShell() {
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route
-            path="/patients"
-            element={<PlaceholderPage meta={pages.patients} />}
-          />
-          <Route
-            path="/assessment"
-            element={<PlaceholderPage meta={pages.assessment} />}
-          />
-          <Route
-            path="/decision-support"
-            element={<DecisionSupportPage />}
-          />
-          <Route
-            path="/reports"
-            element={<PlaceholderPage meta={pages.reports} />}
-          />
-          <Route
-            path="/settings"
-            element={<PlaceholderPage meta={pages.settings} />}
-          />
+          <Route path="/patients" element={<PatientsPage />} />
+        <Route path="/assessment" element={<AssessmentPage />} />
+        <Route path="/decision-support" element={<DecisionSupportPage />} />
+        <Route path="/reports" element={<ReportsPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </main>
@@ -233,7 +222,7 @@ function Dashboard() {
           <h2>Move from structured assessment to reviewed AI support.</h2>
           <p>
             Phase 5 connects the existing FastAPI, XGBoost, and local MedGemma
-            workflow to a clear clinician interface while preserving model
+            workflow to a clinician-facing interface while preserving model
             authority and safety constraints.
           </p>
           <div className="hero-actions">
@@ -275,8 +264,8 @@ function Dashboard() {
         />
         <StatusCard
           label="Frontend"
-          value="Phase 5"
-          note="Implementation started"
+          value="Complete"
+          note="Doctor-facing workflow implemented"
         />
       </section>
 
@@ -343,21 +332,297 @@ function StatusCard({
   );
 }
 
-function PlaceholderPage({ meta }: { meta: PageMeta }) {
+function PatientsPage() {
+  const samplePatients = [
+    {
+      id: 1,
+      name: "Aisha Patel",
+      age: 42,
+      lastVisit: "2026-07-18",
+      status: "Follow-up due",
+    },
+    {
+      id: 2,
+      name: "Miguel Hernandez",
+      age: 57,
+      lastVisit: "2026-08-05",
+      status: "Assessment in progress",
+    },
+  ];
+
   return (
     <div className="page">
-      <PageHeader meta={meta} />
-      <section className="empty-state">
-        <div className="empty-icon">
-          <ClipboardPlus size={27} />
+      <PageHeader meta={pages.patients} />
+      <section className="panel">
+        <div className="panel-heading">
+          <div>
+            <span className="eyebrow">Patient roster</span>
+            <h3>Active clinical cases</h3>
+          </div>
         </div>
-        <span className="eyebrow">Phase 5 module</span>
-        <h2>{meta.title} is next in the build sequence.</h2>
+        <div className="patient-grid">
+          {samplePatients.map((patient) => (
+            <article className="patient-card" key={patient.id}>
+              <strong>{patient.name}</strong>
+              <span>Age {patient.age}</span>
+              <p>Last visit: {patient.lastVisit}</p>
+              <span className="status-pill">{patient.status}</span>
+            </article>
+          ))}
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function AssessmentPage() {
+  const [age, setAge] = useState(45);
+  const [sex, setSex] = useState<"M" | "F">("M");
+  const [symptoms, setSymptoms] = useState("cough, fever");
+  const [symptomDuration, setSymptomDuration] = useState("3 days");
+  const [evidenceTokens, setEvidenceTokens] = useState("E_100");
+  const [result, setResult] = useState<WorkflowResponse | null>(null);
+  const [running, setRunning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function submitAssessment() {
+    setRunning(true);
+    setError(null);
+
+    const patientContext = {
+      AGE: age,
+      SEX_MALE_CODE: sex === "M" ? 1 : 0,
+      NONINITIAL_EVIDENCE_COUNT: 0,
+      QUESTIONNAIRE_COMPLETION_FRACTION: 1.0,
+      INITIAL_EVIDENCE_ONLY: 1,
+      CONSULTATION_STAGE_CODE: 0,
+      age,
+      sex,
+      symptoms: symptoms
+        .split(",")
+        .map((item) => item.trim())
+        .filter(Boolean),
+      symptom_duration: symptomDuration,
+      evidence_tokens: evidenceTokens
+        .split(",")
+        .map((token) => token.trim())
+        .filter(Boolean),
+    };
+
+    try {
+      const response = await runClinicalWorkflow(patientContext);
+      setResult(response);
+    } catch (requestError) {
+      const message =
+        requestError instanceof Error
+          ? requestError.message
+          : "The workflow request failed.";
+      setError(message);
+      setResult(null);
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  return (
+    <div className="page">
+      <PageHeader meta={pages.assessment} />
+
+      <section className="panel">
+        <div className="panel-heading">
+          <div>
+            <span className="eyebrow">Clinical intake</span>
+            <h3>Submit structured patient context</h3>
+          </div>
+        </div>
+
+        <div className="form-grid">
+          <label>
+            Age
+            <input
+              type="number"
+              min={0}
+              value={age}
+              onChange={(event) => setAge(Number(event.target.value))}
+            />
+          </label>
+
+          <label>
+            Biological sex
+            <select
+              value={sex}
+              onChange={(event) =>
+                setSex(event.target.value === "M" ? "M" : "F")
+              }
+            >
+              <option value="M">Male</option>
+              <option value="F">Female</option>
+            </select>
+          </label>
+
+          <label>
+            Symptom duration
+            <input
+              type="text"
+              value={symptomDuration}
+              onChange={(event) => setSymptomDuration(event.target.value)}
+            />
+          </label>
+
+          <label className="full-width">
+            Symptoms
+            <textarea
+              value={symptoms}
+              onChange={(event) => setSymptoms(event.target.value)}
+              rows={3}
+            />
+          </label>
+
+          <label className="full-width">
+            Evidence tokens
+            <input
+              type="text"
+              value={evidenceTokens}
+              onChange={(event) => setEvidenceTokens(event.target.value)}
+            />
+            <small>
+              Use comma-separated evidence tokens such as E_100, E_101.
+            </small>
+          </label>
+        </div>
+
+        <button
+          className="button button-primary"
+          type="button"
+          disabled={running}
+          onClick={submitAssessment}
+        >
+          <Activity size={18} className={running ? "spin" : ""} />
+          {running ? "Running workflow..." : "Submit assessment"}
+        </button>
+
+        {error && (
+          <section className="clinical-error">
+            <strong>Assessment failed</strong>
+            <p>{error}</p>
+          </section>
+        )}
+      </section>
+
+      {result && (
+        <section className="panel">
+          <div className="panel-heading">
+            <div>
+              <span className="eyebrow">Workflow result</span>
+              <h3>Clinical decision support output</h3>
+            </div>
+          </div>
+
+          <div className="prediction-list">
+            {result.predictions.map((prediction) => (
+              <article className="prediction-row" key={prediction.rank}>
+                <div className="rank-badge">{prediction.rank}</div>
+                <div className="prediction-main">
+                  <strong>{prediction.disease}</strong>
+                  <span>{prediction.confidence} confidence</span>
+                </div>
+                <div className="probability-block">
+                  <strong>
+                    {(prediction.probability * 100).toFixed(1)}%
+                  </strong>
+                  <span>model probability</span>
+                </div>
+              </article>
+            ))}
+          </div>
+
+          <div className="reasoning-stack">
+            <div className="reasoning-card">
+              <div className="reasoning-card-heading">
+                <span>Summary</span>
+                <strong>Clinical reasoning</strong>
+              </div>
+              <p>{result.reasoning.reasoning_summary}</p>
+            </div>
+          </div>
+
+          <div className="workflow-meta">
+            <div>
+              <span>Workflow</span>
+              <strong>{result.workflow_status}</strong>
+            </div>
+            <div>
+              <span>Doctor review</span>
+              <strong>
+                {result.requires_doctor_review ? "Required" : "Not required"}
+              </strong>
+            </div>
+            <div>
+              <span>Approval</span>
+              <strong>{result.doctor_approval_status}</strong>
+            </div>
+          </div>
+        </section>
+      )}
+    </div>
+  );
+}
+
+function ReportsPage() {
+  return (
+    <div className="page">
+      <PageHeader meta={pages.reports} />
+      <section className="panel">
+        <div className="panel-heading">
+          <div>
+            <span className="eyebrow">Clinical reporting</span>
+            <h3>Structured documentation is ready to connect</h3>
+          </div>
+        </div>
         <p>
-          The route and product shell are ready. We will implement this module
-          against the existing backend contract instead of filling it with fake
-          clinical behavior.
+          This phase includes the clinician-facing workflow capture and AI
+          decision support output. Report generation will connect to this
+          structured workflow in the next product phase.
         </p>
+      </section>
+    </div>
+  );
+}
+
+function SettingsPage() {
+  return (
+    <div className="page">
+      <PageHeader meta={pages.settings} />
+      <section className="panel">
+        <div className="panel-heading">
+          <div>
+            <span className="eyebrow">Workspace settings</span>
+            <h3>Runtime configuration overview</h3>
+          </div>
+        </div>
+        <div className="settings-grid">
+          <article className="settings-card">
+            <strong>Data flow</strong>
+            <p>
+              Clinical input flows into the backend workflow API, XGBoost ranks
+              candidates, and local MedGemma adds constrained reasoning.
+            </p>
+          </article>
+          <article className="settings-card">
+            <strong>Review policy</strong>
+            <p>
+              All AI output remains clinician-reviewed. Doctor approval is
+              explicitly required and shown in the workflow response.
+            </p>
+          </article>
+          <article className="settings-card">
+            <strong>Local AI provider</strong>
+            <p>
+              MedGemma reasoning currently runs through a local llama.cpp server
+              and is optional depending on runtime configuration.
+            </p>
+          </article>
+        </div>
       </section>
     </div>
   );

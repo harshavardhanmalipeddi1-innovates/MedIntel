@@ -93,9 +93,11 @@ class ArtifactManager:
         dir_path = self._base_path / dirname
 
         if not dir_path.is_dir():
-            raise RuntimeError(
-                f"Missing artifact directory: {dirname}"
+            logger.warning(
+                "Optional artifact directory missing: %s",
+                dir_path,
             )
+            return []
 
         if dirname in self._cache:
             logger.debug(

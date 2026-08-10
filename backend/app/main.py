@@ -9,6 +9,7 @@ sys.path.insert(
 )
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from backend.app.api.prediction import router as prediction_router
 from backend.app.api.reasoning import router as reasoning_router
@@ -19,6 +20,19 @@ from backend.app.api.assessment import router as assessment_router
 
 
 app = FastAPI(title="MedIntel API", version="1.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/health")
