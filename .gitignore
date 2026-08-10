@@ -50,3 +50,4 @@ models/xgboost/artifacts/*
 *.pyc
 *.before-scope-fix
 *.before-provenance-cleanup
+*.before-*-fix
