@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   Activity,
   ClipboardPlus,
@@ -19,9 +19,19 @@ import {
   Navigate,
   Route,
   Routes,
+  useLocation,
+  useNavigate,
 } from "react-router-dom";
 import "./styles.css";
-import { runVerifiedSyntheticWorkflow, type WorkflowResponse } from "./api";
+import {
+  getAssessmentQuestionnaire,
+  prepareAssessment,
+  runClinicalWorkflow,
+  runVerifiedSyntheticWorkflow,
+  type AssessmentQuestion,
+  type AssessmentQuestionnaire,
+  type WorkflowResponse,
+} from "./api";
 
 type PageMeta = {
   title: string;
@@ -185,7 +195,7 @@ function AppShell() {
           />
           <Route
             path="/assessment"
-            element={<PlaceholderPage meta={pages.assessment} />}
+            element={<AssessmentPage />}
           />
           <Route
             path="/decision-support"
@@ -343,6 +353,511 @@ function StatusCard({
   );
 }
 
+
+type AssessmentValue = string | boolean | number | string[];
+
+function AssessmentPage() {
+  const navigate = useNavigate();
+
+  const [questionnaire, setQuestionnaire] =
+    useState<AssessmentQuestionnaire | null>(null);
+
+  const [age, setAge] = useState(45);
+  const [sex, setSex] = useState<"M" | "F">("M");
+  const [initialEvidence, setInitialEvidence] = useState("");
+  const [answers, setAnswers] =
+    useState<Record<string, AssessmentValue>>({});
+  const [questionSearch, setQuestionSearch] = useState("");
+
+  const [loadingQuestionnaire, setLoadingQuestionnaire] = useState(true);
+  const [running, setRunning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadQuestionnaire() {
+      try {
+        const response = await getAssessmentQuestionnaire();
+
+        if (!active) {
+          return;
+        }
+
+        setQuestionnaire(response);
+        setInitialEvidence(response.initial_evidence_codes[0] ?? "");
+      } catch (requestError) {
+        if (!active) {
+          return;
+        }
+
+        setError(
+          requestError instanceof Error
+            ? requestError.message
+            : "Unable to load the assessment questionnaire.",
+        );
+      } finally {
+        if (active) {
+          setLoadingQuestionnaire(false);
+        }
+      }
+    }
+
+    void loadQuestionnaire();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const visibleQuestions = useMemo(() => {
+    if (!questionnaire) {
+      return [];
+    }
+
+    const search = questionSearch.trim().toLowerCase();
+
+    return questionnaire.questions.filter((question) => {
+      if (question.code === initialEvidence) {
+        return false;
+      }
+
+      if (!search) {
+        return true;
+      }
+
+      return (
+        question.code.toLowerCase().includes(search) ||
+        question.question.toLowerCase().includes(search)
+      );
+    });
+  }, [initialEvidence, questionSearch, questionnaire]);
+
+  function updateAnswer(
+    code: string,
+    value: AssessmentValue | null,
+  ) {
+    setAnswers((current) => {
+      const next = { ...current };
+
+      if (
+        value === null ||
+        value === "" ||
+        (Array.isArray(value) && value.length === 0)
+      ) {
+        delete next[code];
+      } else {
+        next[code] = value;
+      }
+
+      return next;
+    });
+  }
+
+  function renderAnswerControl(question: AssessmentQuestion) {
+    const value = answers[question.code];
+
+    if (question.answer_kind === "binary") {
+      return (
+        <select
+          className="assessment-input"
+          value={typeof value === "boolean" ? String(value) : ""}
+          onChange={(event) => {
+            if (event.target.value === "") {
+              updateAnswer(question.code, null);
+              return;
+            }
+
+            updateAnswer(
+              question.code,
+              event.target.value === "true",
+            );
+          }}
+        >
+          <option value="">Not answered</option>
+          {question.options.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      );
+    }
+
+    if (question.answer_kind === "scale") {
+      return (
+        <input
+          className="assessment-input"
+          type="number"
+          min={question.scale_min ?? undefined}
+          max={question.scale_max ?? undefined}
+          step={1}
+          value={typeof value === "number" ? value : ""}
+          placeholder={
+            question.scale_min !== null && question.scale_max !== null
+              ? `${question.scale_min} - ${question.scale_max}`
+              : "Enter value"
+          }
+          onChange={(event) => {
+            updateAnswer(
+              question.code,
+              event.target.value === ""
+                ? null
+                : Number(event.target.value),
+            );
+          }}
+        />
+      );
+    }
+
+    if (question.answer_kind === "multi_select") {
+      const selected = Array.isArray(value) ? value : [];
+
+      return (
+        <div className="assessment-options">
+          {question.options.map((option) => {
+            const checked = selected.includes(option.value);
+
+            return (
+              <label
+                className="assessment-option"
+                key={option.value}
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={(event) => {
+                    const next = event.target.checked
+                      ? [...selected, option.value]
+                      : selected.filter(
+                          (selectedValue) =>
+                            selectedValue !== option.value,
+                        );
+
+                    updateAnswer(
+                      question.code,
+                      next.length > 0 ? next : null,
+                    );
+                  }}
+                />
+                <span>{option.label}</span>
+              </label>
+            );
+          })}
+        </div>
+      );
+    }
+
+    if (question.options.length > 0) {
+      return (
+        <select
+          className="assessment-input"
+          value={typeof value === "string" ? value : ""}
+          onChange={(event) =>
+            updateAnswer(
+              question.code,
+              event.target.value || null,
+            )
+          }
+        >
+          <option value="">Not answered</option>
+          {question.options.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      );
+    }
+
+    return (
+      <input
+        className="assessment-input"
+        type="text"
+        value={typeof value === "string" ? value : ""}
+        placeholder="Not answered"
+        onChange={(event) =>
+          updateAnswer(
+            question.code,
+            event.target.value || null,
+          )
+        }
+      />
+    );
+  }
+
+  async function submitAssessment(
+    event: FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault();
+
+    if (!initialEvidence) {
+      setError("Select an initial evidence before continuing.");
+      return;
+    }
+
+    setRunning(true);
+    setError(null);
+
+    try {
+      const assessmentAnswers = Object.entries(answers)
+        .filter(([code]) => code !== initialEvidence)
+        .map(([code, value]) => ({
+          code,
+          value,
+        }));
+
+      const prepared = await prepareAssessment({
+        age,
+        sex,
+        initial_evidence: initialEvidence,
+        answers: assessmentAnswers,
+      });
+
+      if (!prepared.patient_context) {
+        throw new Error(
+          "Assessment preparation returned no patient_context.",
+        );
+      }
+
+      const workflow =
+        await runClinicalWorkflow(prepared.patient_context);
+
+      navigate("/decision-support", {
+        state: {
+          workflowResult: workflow,
+        },
+      });
+    } catch (requestError) {
+      setError(
+        requestError instanceof Error
+          ? requestError.message
+          : "Assessment workflow failed.",
+      );
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  if (loadingQuestionnaire) {
+    return (
+      <div className="page">
+        <PageHeader meta={pages.assessment} />
+
+        <section className="model-progress">
+          <Activity size={20} className="spin" />
+          <div>
+            <strong>Loading model-scoped questionnaire</strong>
+            <p>
+              MedIntel is loading the live assessment contract from
+              the backend.
+            </p>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  if (!questionnaire) {
+    return (
+      <div className="page">
+        <PageHeader meta={pages.assessment} />
+
+        <section className="clinical-error">
+          <strong>Assessment questionnaire unavailable</strong>
+          <p>{error ?? "The questionnaire could not be loaded."}</p>
+        </section>
+      </div>
+    );
+  }
+
+  return (
+    <div className="page">
+      <PageHeader meta={pages.assessment} />
+
+      <form onSubmit={submitAssessment}>
+        <section className="panel">
+          <div className="panel-heading">
+            <div>
+              <span className="eyebrow">Step 1</span>
+              <h3>Patient and encounter context</h3>
+            </div>
+          </div>
+
+          <div className="assessment-grid">
+            <label className="assessment-field">
+              <span>Age</span>
+              <input
+                className="assessment-input"
+                type="number"
+                min={0}
+                max={120}
+                required
+                value={age}
+                onChange={(event) =>
+                  setAge(Number(event.target.value))
+                }
+              />
+            </label>
+
+            <label className="assessment-field">
+              <span>Sex</span>
+              <select
+                className="assessment-input"
+                value={sex}
+                onChange={(event) =>
+                  setSex(event.target.value as "M" | "F")
+                }
+              >
+                <option value="M">Male</option>
+                <option value="F">Female</option>
+              </select>
+            </label>
+
+            <label className="assessment-field assessment-field-wide">
+              <span>Initial evidence / reason for consultation</span>
+
+              <select
+                className="assessment-input"
+                required
+                value={initialEvidence}
+                onChange={(event) => {
+                  const code = event.target.value;
+
+                  setInitialEvidence(code);
+
+                  if (code) {
+                    updateAnswer(code, null);
+                  }
+                }}
+              >
+                <option value="">Select initial evidence</option>
+
+                {questionnaire.initial_evidence_codes.map((code) => {
+                  const question = questionnaire.questions.find(
+                    (item) => item.code === code,
+                  );
+
+                  return (
+                    <option key={code} value={code}>
+                      {question
+                        ? `${code} - ${question.question}`
+                        : code}
+                    </option>
+                  );
+                })}
+              </select>
+            </label>
+          </div>
+        </section>
+
+        <section className="panel assessment-questionnaire">
+          <div className="assessment-toolbar">
+            <div>
+              <span className="eyebrow">Step 2</span>
+              <h3>Model-scoped clinical questionnaire</h3>
+              <p>
+                Answer only information that is actually known.
+                Unanswered items are not submitted to the model.
+              </p>
+            </div>
+
+            <div className="assessment-count">
+              {Object.keys(answers).length} answered
+            </div>
+          </div>
+
+          <input
+            className="assessment-input assessment-search"
+            type="search"
+            value={questionSearch}
+            placeholder="Search questionnaire by evidence code or question"
+            onChange={(event) =>
+              setQuestionSearch(event.target.value)
+            }
+          />
+
+          <div className="assessment-question-list">
+            {visibleQuestions.map((question) => (
+              <article
+                className="assessment-question"
+                key={question.code}
+              >
+                <div className="assessment-question-heading">
+                  <div>
+                    <span className="question-code">
+                      {question.code}
+                    </span>
+                    <strong>{question.question}</strong>
+                  </div>
+
+                  <span className="question-kind">
+                    {question.answer_kind.replaceAll("_", " ")}
+                  </span>
+                </div>
+
+                <div className="assessment-control">
+                  {renderAnswerControl(question)}
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+
+        {error && (
+          <section className="clinical-error">
+            <strong>Assessment workflow failed</strong>
+            <p>{error}</p>
+          </section>
+        )}
+
+        <section className="assessment-submit-panel">
+          <div>
+            <ShieldCheck size={22} />
+            <div>
+              <strong>Doctor review remains mandatory</strong>
+              <p>
+                This prepares model input and requests decision support.
+                It does not establish a diagnosis or authorize treatment.
+              </p>
+            </div>
+          </div>
+
+          <button
+            className="button button-primary workflow-run-button"
+            type="submit"
+            disabled={running || !initialEvidence}
+          >
+            <Activity
+              size={18}
+              className={running ? "spin" : ""}
+            />
+
+            {running
+              ? "Running decision support..."
+              : "Prepare assessment & run decision support"}
+          </button>
+        </section>
+
+        {running && (
+          <section className="model-progress">
+            <Activity size={20} className="spin" />
+            <div>
+              <strong>
+                XGBoost and constrained local reasoning are running
+              </strong>
+              <p>
+                Local CPU reasoning can require several minutes.
+                Keep this page open until the workflow completes.
+              </p>
+            </div>
+          </section>
+        )}
+      </form>
+    </div>
+  );
+}
+
 function PlaceholderPage({ meta }: { meta: PageMeta }) {
   return (
     <div className="page">
@@ -364,7 +879,17 @@ function PlaceholderPage({ meta }: { meta: PageMeta }) {
 }
 
 function DecisionSupportPage() {
-  const [result, setResult] = useState<WorkflowResponse | null>(null);
+  const location = useLocation();
+
+  const routedResult =
+    (
+      location.state as
+        | { workflowResult?: WorkflowResponse }
+        | null
+    )?.workflowResult ?? null;
+
+  const [result, setResult] =
+    useState<WorkflowResponse | null>(routedResult);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -395,10 +920,9 @@ function DecisionSupportPage() {
           <span className="eyebrow">Verified engineering path</span>
           <h3>Run the real Docker model workflow from the browser</h3>
           <p>
-            This uses the same synthetic engineering payload already verified
-            against FastAPI, XGBoost, local MedGemma, safety validation, and
-            doctor-review workflow. E_100 is a technical test token and is not
-            assigned a clinical meaning.
+            The engineering demo now uses the same live assessment preparation
+            contract as the clinician-facing workflow. The browser no longer
+            constructs model evidence tokens or dense inference features itself.
           </p>
         </div>
         <button
@@ -429,6 +953,20 @@ function DecisionSupportPage() {
         <section className="clinical-error">
           <strong>Workflow request failed</strong>
           <p>{error}</p>
+        </section>
+      )}
+
+      {result?.workflow_status === "NO_DIFFERENTIAL" && (
+        <section className="empty-inline workflow-safe-stop">
+          <ShieldCheck size={24} />
+          <div>
+            <strong>No supported differential returned</strong>
+            <p>
+              The workflow stopped before downstream reasoning because no
+              supported differential candidate was available. Doctor review
+              remains required.
+            </p>
+          </div>
         </section>
       )}
 
@@ -486,7 +1024,7 @@ function DecisionSupportPage() {
             </div>
           ) : (
             <div className="reasoning-stack">
-              {result.reasoning.candidate_reasoning.map((candidate) => (
+              {result.reasoning?.candidate_reasoning.map((candidate) => (
                 <article className="reasoning-card" key={candidate.rank}>
                   <div className="reasoning-card-heading">
                     <span>Rank {candidate.rank}</span>
@@ -498,7 +1036,10 @@ function DecisionSupportPage() {
 
               <div className="summary-card">
                 <span>Reasoning summary</span>
-                <p>{result.reasoning.reasoning_summary}</p>
+                <p>
+                  {result.reasoning?.reasoning_summary ??
+                    "Reasoning unavailable for this workflow result."}
+                </p>
               </div>
             </div>
           )}
