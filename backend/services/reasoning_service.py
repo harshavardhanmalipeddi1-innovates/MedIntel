@@ -1,4 +1,4 @@
-﻿import logging
+import logging
 from backend.app.config.settings import settings
 from backend.app.schemas.reasoning_schema import (
     ClinicalReasoningRequest,
@@ -7,6 +7,9 @@ from backend.app.schemas.reasoning_schema import (
 from backend.services.local_medgemma_provider import LocalMedGemmaProvider
 from backend.services.mock_reasoning_provider import MockReasoningProvider
 from backend.app.modules.reasoning_engine.context_builder import ContextBuilder
+from backend.app.modules.reasoning_engine.evidence_semantic_normalizer import (
+    EvidenceSemanticNormalizer,
+)
 from backend.app.modules.reasoning_engine.prompt_builder import PromptBuilder
 from backend.app.modules.reasoning_engine.response_parser import ResponseParser
 from backend.app.modules.reasoning_engine.safety_validator import SafetyValidator
@@ -57,7 +60,13 @@ class ReasoningService:
             # 5. Schema Validation
             response_obj = ClinicalReasoningResponse(**parsed_json)
 
-            # 6. Safety Validation
+            # 6. Deterministic evidence semantic normalization
+            response_obj = EvidenceSemanticNormalizer.normalize(
+                request,
+                response_obj,
+            )
+
+            # 7. Safety Validation
             SafetyValidator.validate(request, response_obj)
 
             return response_obj

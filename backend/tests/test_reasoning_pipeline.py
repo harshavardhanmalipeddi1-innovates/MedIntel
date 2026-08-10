@@ -87,3 +87,104 @@ def test_prompt_builder_contains_non_authoritative_guardrails(
     assert "most likely diagnosis" in prompt
     assert "findings support consideration of this candidate" in prompt
     assert "must not be reinterpreted as diagnostic certainty" in prompt
+
+
+def test_context_builder_adds_semantic_initial_evidence(sample_request):
+    request = sample_request.model_copy(
+        update={
+            "patient_context": {
+                "age": 58,
+                "sex": "M",
+                "initial_evidence": "E_77",
+                "positive_evidence_tokens": ["E_66"],
+                "answered_question_codes": ["E_66"],
+                "evidence_tokens": [
+                    "E_66",
+                    "INITIAL::E_77",
+                ],
+            }
+        }
+    )
+
+    context_str = ContextBuilder.build_context(request)
+    data = json.loads(context_str)
+
+    semantic = data["Semantic_Evidence_Context"]
+    observed = semantic["Observed_Clinical_Evidence"]
+
+    initial = next(
+        item
+        for item in observed
+        if item["Code"] == "E_77"
+    )
+
+    assert initial["Source"] == "initial_evidence"
+    assert initial["Observed"] is True
+    assert initial["Initial_Evidence"] is True
+
+    assert (
+        initial["Clinical_Meaning"]
+        == "Do you have a cough that produces colored or more abundant sputum than usual?"
+    )
+
+    assert (
+        data["Patient_Context"]["evidence_tokens"]
+        == ["E_66", "INITIAL::E_77"]
+    )
+
+
+def test_context_builder_semanticizes_positive_evidence(sample_request):
+    request = sample_request.model_copy(
+        update={
+            "patient_context": {
+                "initial_evidence": "E_77",
+                "positive_evidence_tokens": ["E_66"],
+                "answered_question_codes": ["E_66"],
+                "evidence_tokens": [
+                    "E_66",
+                    "INITIAL::E_77",
+                ],
+            }
+        }
+    )
+
+    data = json.loads(
+        ContextBuilder.build_context(request)
+    )
+
+    observed = data[
+        "Semantic_Evidence_Context"
+    ]["Observed_Clinical_Evidence"]
+
+    finding = next(
+        item
+        for item in observed
+        if item["Code"] == "E_66"
+    )
+
+    assert finding["Original_Token"] == "E_66"
+    assert finding["Observed"] is True
+    assert finding["Clinical_Meaning"]
+    assert finding["Clinical_Meaning"] != "E_66"
+
+
+def test_context_builder_decodes_value_bearing_token():
+    code, value, initial = ContextBuilder._decode_evidence_token(
+        "E_130_@_V_11"
+    )
+
+    assert code == "E_130"
+    assert value == "V_11"
+    assert initial is False
+
+
+def test_prompt_builder_contains_evidence_semantic_guardrails(
+    sample_request,
+):
+    context_str = ContextBuilder.build_context(sample_request)
+    prompt = PromptBuilder.build_prompt(context_str)
+
+    assert "EVIDENCE SEMANTIC RULES:" in prompt
+    assert "Initial evidence is already observed patient evidence" in prompt
+    assert "Observed_Clinical_Evidence" in prompt
+    assert "Explicitly_Answered_Question_Codes" in prompt
