@@ -57,15 +57,26 @@ class VerificationService:
             if knowledge is None:
                 continue
 
+            # Knowledge-base red flags are disease-level screening guidance.
+            # They do NOT establish that the finding is present in this patient.
+            # Critical/PRESENT semantics require deterministic patient evidence.
+            # No fuzzy text matching is performed here.
             for red_flag in knowledge.red_flags:
                 steps.append(
                     VerificationStep(
                         candidate_disease=candidate.disease,
-                        reason=f"Knowledge-base red flag for {candidate.disease}",
-                        priority="critical",
+                        reason=(
+                            f"Screen/check knowledge-base red flag for "
+                            f"{candidate.disease}"
+                        ),
+                        priority="high",
                         category="other",
-                        supporting_context=red_flag,
-                        is_red_flag=True,
+                        supporting_context=(
+                            f"Screen/check for: {red_flag}. "
+                            "Knowledge-base guidance only; this does not "
+                            "establish that the finding is present in this patient."
+                        ),
+                        is_red_flag=False,
                     )
                 )
 
