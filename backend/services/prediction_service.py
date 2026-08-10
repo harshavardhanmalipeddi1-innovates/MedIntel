@@ -153,44 +153,29 @@ class PredictionService:
         self,
         features: np.ndarray
     ) -> Dict[str, Any]:
+        """
+        Disabled legacy interface.
 
-        model = self._ensure_model(
-            "_supported_model",
-            self._loader.load_supported_scope_model
+        The supported-scope model is a binary gating model, not a
+        13-class disease classifier. It also requires a separate
+        scope-specific feature representation.
+
+        Do not pass its output through the disease formatter.
+        """
+        raise RuntimeError(
+            "predict_supported_conditions() is disabled because the "
+            "supported-scope model is a binary gating model and must "
+            "not be formatted as disease probabilities."
         )
-
-        predictions = self._predict(
-            model,
-            features
-        )
-
-        return {
-            "predictions": self._format_predictions(predictions),
-            "model": "xgboost",
-            "status": "success"
-        }
 
     def rank_differential_diagnosis(
         self,
         features: np.ndarray
     ) -> Dict[str, Any]:
+        """
+        Return disease ranking from the primary pathology model only.
 
-        primary = self.predict_primary_disease(features)
-        supported = self.predict_supported_conditions(features)
-
-        combined = (
-            primary["predictions"]
-            +
-            supported["predictions"]
-        )
-
-        combined.sort(
-            key=lambda x: x["probability"],
-            reverse=True
-        )
-
-        return {
-            "predictions": combined,
-            "model": "xgboost",
-            "status": "success"
-        }
+        Scope inference is a separate gating concern and must never
+        be merged into disease probabilities.
+        """
+        return self.predict_primary_disease(features)

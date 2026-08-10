@@ -45,3 +45,9 @@ models/xgboost/artifacts/*
 
 # Logs
 *.log
+.env.*
+!.env.example
+*.pyc
+*.before-scope-fix
+*.before-provenance-cleanup
+*.before-*-fix
