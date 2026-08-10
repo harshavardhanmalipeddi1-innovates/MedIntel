@@ -247,3 +247,49 @@ def test_treatment_draft_api():
     assert data["doctor_approval_status"] == "PENDING"
     assert data["requires_doctor_review"] is True
     assert len(data["considerations"]) == 1
+def test_treatment_kb_red_flag_is_screening_warning_only():
+    request = ClinicalReasoningRequest(
+        patient_context={},
+        rules=ClinicalRuleResult(),
+        differential=[
+            ReasoningDifferentialItem(
+                rank=1,
+                disease="Bronchiectasis",
+                probability=0.4,
+                confidence="Low",
+                knowledge=DiseaseKnowledge(
+                    disease_id="bronchiectasis",
+                    name="Bronchiectasis",
+                    description="Synthetic KB record.",
+                    knowledge_version="test-v1",
+                    red_flags=["Marked hypoxemia"],
+                ),
+            )
+        ],
+    )
+
+    reasoning = ClinicalReasoningResponse(
+        candidate_reasoning=[],
+        reasoning_summary="Synthetic reasoning.",
+        requires_doctor_review=True,
+    )
+
+    draft = TreatmentDraftService().generate_draft(
+        request,
+        reasoning,
+    )
+
+    warning = next(
+        item
+        for item in draft.considerations[0].warnings
+        if "red-flag screening item" in item
+    )
+
+    assert "check for: Marked hypoxemia" in warning
+
+    assert (
+        "does not establish that the finding is present"
+        in warning
+    )
+
+    assert "PRESENT" not in warning

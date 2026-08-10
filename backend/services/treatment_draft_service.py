@@ -59,7 +59,12 @@ class TreatmentDraftService:
                 )
 
                 warnings.extend(
-                    f"Knowledge-base red flag requiring clinician review: {item}"
+                    (
+                        f"Knowledge-base red-flag screening item; "
+                        f"check for: {item}. "
+                        "This does not establish that the finding is "
+                        "present in this patient."
+                    )
                     for item in knowledge.red_flags
                 )
 

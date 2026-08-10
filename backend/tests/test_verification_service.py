@@ -45,10 +45,40 @@ def test_verification_service():
     service = VerificationService()
     plan = service.generate_verification_plan(req, res)
     
-    # Expect 1 from KB red flags, 1 from KB investigations, 1 from AI red flag
+    # Expect 1 KB red-flag screening item, 1 KB investigation,
+    # and 1 AI-highlighted clinician-review concern.
     assert len(plan.suggested_steps) == 3
-    assert any(s.is_red_flag for s in plan.suggested_steps)
-    assert any(s.category == "imaging" for s in plan.suggested_steps)
+
+    kb_step = next(
+        step
+        for step in plan.suggested_steps
+        if step.reason.startswith(
+            "Screen/check knowledge-base red flag"
+        )
+    )
+
+    assert kb_step.priority == "high"
+    assert kb_step.is_red_flag is False
+
+    assert (
+        "Screen/check for: High fever > 39C"
+        in kb_step.supporting_context
+    )
+
+    assert (
+        "does not establish that the finding is present in this patient"
+        in kb_step.supporting_context
+    )
+
+    assert not any(
+        step.priority == "critical"
+        for step in plan.suggested_steps
+    )
+
+    assert any(
+        step.category == "imaging"
+        for step in plan.suggested_steps
+    )
 
 
 
@@ -285,4 +315,118 @@ def test_verification_api():
     assert (
         step["supporting_context"]
         == "Check oxygen saturation and respiratory status"
+    )
+def test_kb_red_flag_without_patient_evidence_is_screening_only():
+    knowledge = DiseaseKnowledge(
+        disease_id="bronchiectasis",
+        name="Bronchiectasis",
+        description="Synthetic KB record.",
+        knowledge_version="test-v1",
+        red_flags=["Marked hypoxemia"],
+    )
+
+    request = ClinicalReasoningRequest(
+        patient_context={
+            "initial_evidence": "E_77",
+            "positive_evidence_tokens": ["E_66"],
+            "evidence_tokens": [
+                "E_66",
+                "INITIAL::E_77",
+            ],
+        },
+        rules=ClinicalRuleResult(),
+        differential=[
+            ReasoningDifferentialItem(
+                rank=1,
+                disease="Bronchiectasis",
+                probability=0.4,
+                confidence="Low",
+                knowledge=knowledge,
+            )
+        ],
+    )
+
+    plan = VerificationService().generate_verification_plan(
+        request,
+        _minimal_reasoning(),
+    )
+
+    step = next(
+        item
+        for item in plan.suggested_steps
+        if "knowledge-base red flag"
+        in item.reason.lower()
+    )
+
+    assert step.priority == "high"
+    assert step.is_red_flag is False
+
+    assert (
+        "Screen/check for: Marked hypoxemia"
+        in step.supporting_context
+    )
+
+    assert (
+        "does not establish that the finding is present"
+        in step.supporting_context
+    )
+
+    assert "PRESENT" not in step.reason
+    assert "PRESENT" not in step.supporting_context
+
+
+def test_kb_red_flags_do_not_create_critical_steps():
+    knowledge = DiseaseKnowledge(
+        disease_id="acute_copd_exacerbation",
+        name="Acute Exacerbation of COPD",
+        description="Synthetic KB record.",
+        knowledge_version="test-v1",
+        red_flags=[
+            "Severe or rapidly worsening breathlessness",
+            "Marked hypoxemia or cyanosis",
+            "Altered mental status",
+        ],
+    )
+
+    request = ClinicalReasoningRequest(
+        patient_context={},
+        rules=ClinicalRuleResult(),
+        differential=[
+            ReasoningDifferentialItem(
+                rank=1,
+                disease="Acute COPD exacerbation / infection",
+                probability=0.4,
+                confidence="Low",
+                knowledge=knowledge,
+            )
+        ],
+    )
+
+    plan = VerificationService().generate_verification_plan(
+        request,
+        _minimal_reasoning(),
+    )
+
+    kb_steps = [
+        step
+        for step in plan.suggested_steps
+        if "knowledge-base red flag"
+        in step.reason.lower()
+    ]
+
+    assert len(kb_steps) == 3
+
+    assert all(
+        step.priority == "high"
+        for step in kb_steps
+    )
+
+    assert all(
+        step.is_red_flag is False
+        for step in kb_steps
+    )
+
+    assert not any(
+        step.priority == "critical"
+        for step in kb_steps
     )

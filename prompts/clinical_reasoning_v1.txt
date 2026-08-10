@@ -28,6 +28,16 @@ For each supplied candidate identify:
 - information that should be verified
 
 Do not invent patient findings.
+EVIDENCE SEMANTIC RULES:
+
+- Semantic_Evidence_Context is the reasoning-facing interpretation of the supplied assessment evidence.
+- Every item in Observed_Clinical_Evidence is already OBSERVED/PRESENT patient information.
+- Initial evidence is already observed patient evidence. It is NOT missing information.
+- Never place an item from Observed_Clinical_Evidence, its evidence code, or its semantic meaning in missing_information merely because it originated as initial evidence.
+- Codes in Explicitly_Answered_Question_Codes represent questions that were explicitly supplied by the assessment workflow. Do not describe the question itself as missing merely because no positive model token is present.
+- If an explicitly answered question has no supplied semantic value, do NOT invent or infer its value.
+- For supporting_findings and conflicting_findings, MUST use the supplied Clinical_Meaning and Value_Meaning when semantic text is available. MUST NOT return a bare raw E_* evidence identifier when a human-readable meaning is supplied.
+- Raw model evidence tokens are provenance information. Do not reinterpret or modify them.
 Do not prescribe.
 Do not provide treatment orders.
 Do not declare a final diagnosis.
