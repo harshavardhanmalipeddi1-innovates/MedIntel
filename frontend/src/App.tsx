@@ -24,12 +24,18 @@ import {
 } from "react-router-dom";
 import "./styles.css";
 import {
+  clearClinicianSession,
   getAssessmentQuestionnaire,
+  getCurrentClinician,
+  getStoredClinicianSession,
+  loginClinician,
   prepareAssessment,
   runClinicalWorkflow,
   runVerifiedSyntheticWorkflow,
+  subscribeClinicianSession,
   type AssessmentQuestion,
   type AssessmentQuestionnaire,
+  type ClinicianSession,
   type WorkflowResponse,
 } from "./api";
 
@@ -87,7 +93,180 @@ const navItems = [
   { to: "/settings", label: "Settings", icon: Settings },
 ];
 
+
+function AuthLoadingScreen() {
+  return (
+    <div className="auth-screen theme-dark">
+      <section className="auth-card">
+        <div className="auth-brand">
+          <div className="brand-mark">
+            <ShieldCheck size={22} />
+          </div>
+
+          <div>
+            <span className="eyebrow">MedIntel</span>
+            <h1>Verifying clinician session</h1>
+          </div>
+        </div>
+
+        <p className="auth-description">
+          Confirming the local clinician access boundary before opening
+          decision-support tools.
+        </p>
+
+        <div className="auth-loading-row">
+          <Activity size={19} className="spin" />
+          <span>Checking authenticated session...</span>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function ClinicianLoginPage({
+  onAuthenticated,
+}: {
+  onAuthenticated: (session: ClinicianSession) => void;
+}) {
+  const [username, setUsername] = useState("clinician");
+  const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleLogin(
+    event: FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault();
+
+    const normalizedUsername = username.trim();
+
+    if (!normalizedUsername || !password) {
+      setError("Enter the clinician username and password.");
+      return;
+    }
+
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      const session = await loginClinician(
+        normalizedUsername,
+        password,
+      );
+
+      setPassword("");
+      onAuthenticated(session);
+    } catch {
+      setError(
+        "Sign-in failed. Check the clinician credentials and try again.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="auth-screen theme-dark">
+      <section className="auth-card">
+        <div className="auth-brand">
+          <div className="brand-mark">
+            <ShieldCheck size={22} />
+          </div>
+
+          <div>
+            <span className="eyebrow">MedIntel</span>
+            <h1>Clinician sign in</h1>
+          </div>
+        </div>
+
+        <p className="auth-description">
+          Local research-prototype access for the clinician-controlled
+          respiratory decision-support workspace.
+        </p>
+
+        <form
+          className="auth-form"
+          onSubmit={handleLogin}
+        >
+          <label>
+            <span>Clinician username</span>
+            <input
+              type="text"
+              autoComplete="username"
+              value={username}
+              onChange={(event) =>
+                setUsername(event.target.value)
+              }
+              disabled={submitting}
+              maxLength={128}
+              required
+            />
+          </label>
+
+          <label>
+            <span>Password</span>
+            <input
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) =>
+                setPassword(event.target.value)
+              }
+              disabled={submitting}
+              maxLength={256}
+              required
+            />
+          </label>
+
+          {error && (
+            <div
+              className="auth-error"
+              role="alert"
+            >
+              {error}
+            </div>
+          )}
+
+          <button
+            className="button button-primary auth-submit"
+            type="submit"
+            disabled={
+              submitting ||
+              !username.trim() ||
+              !password
+            }
+          >
+            {submitting
+              ? "Signing in..."
+              : "Sign in to clinician workspace"}
+          </button>
+        </form>
+
+        <div className="auth-safety-note">
+          <ShieldCheck size={18} />
+
+          <p>
+            Authentication controls access only. MedIntel remains
+            clinical decision support; diagnosis and treatment decisions
+            remain with the doctor.
+          </p>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function AppShell() {
+  const [session, setSession] =
+    useState<ClinicianSession | null>(
+      () => getStoredClinicianSession(),
+    );
+
+  const [authChecking, setAuthChecking] =
+    useState(
+      () => getStoredClinicianSession() !== null,
+    );
+
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [dark, setDark] = useState(true);
 
@@ -95,6 +274,79 @@ function AppShell() {
     () => `app-shell ${dark ? "theme-dark" : "theme-light"}`,
     [dark],
   );
+
+  useEffect(() => {
+    return subscribeClinicianSession(() => {
+      setSession(
+        getStoredClinicianSession(),
+      );
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!session) {
+      setAuthChecking(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    setAuthChecking(true);
+
+    void getCurrentClinician()
+      .then((identity) => {
+        if (cancelled) {
+          return;
+        }
+
+        if (
+          identity.role !== "clinician" ||
+          identity.username !== session.clinician.username
+        ) {
+          clearClinicianSession();
+          setSession(null);
+          setAuthChecking(false);
+          return;
+        }
+
+        setAuthChecking(false);
+      })
+      .catch(() => {
+        if (cancelled) {
+          return;
+        }
+
+        clearClinicianSession();
+        setSession(null);
+        setAuthChecking(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session]);
+
+  function handleLogout() {
+    clearClinicianSession();
+    setSession(null);
+    setSidebarOpen(false);
+  }
+
+  if (authChecking) {
+    return <AuthLoadingScreen />;
+  }
+
+  if (!session) {
+    return (
+      <ClinicianLoginPage
+        onAuthenticated={(nextSession) => {
+          setAuthChecking(true);
+          setSession(nextSession);
+        }}
+      />
+    );
+  }
+
 
   return (
     <div className={shellClass}>
@@ -176,13 +428,21 @@ function AppShell() {
             >
               {dark ? <Sun size={19} /> : <Moon size={19} />}
             </button>
-            <div className="doctor-chip" aria-label="Clinician profile placeholder">
+            <div className="doctor-chip" aria-label="Authenticated clinician">
               <div className="doctor-avatar">DR</div>
               <div>
-                <strong>Doctor workspace</strong>
-                <span>Authentication pending</span>
+                <strong>{session.clinician.username}</strong>
+                <span>Authenticated clinician</span>
               </div>
             </div>
+
+            <button
+              className="button button-secondary auth-logout-button"
+              type="button"
+              onClick={handleLogout}
+            >
+              Sign out
+            </button>
           </div>
         </header>
 

@@ -118,6 +118,92 @@ function decodePossiblyWrappedJson<T>(text: string): T {
   return value as T;
 }
 
+
+export type ClinicianIdentity = {
+  username: string;
+  role: "clinician";
+};
+
+export type ClinicianTokenResponse = {
+  access_token: string;
+  token_type: "bearer";
+  expires_in_seconds: number;
+  clinician: ClinicianIdentity;
+};
+
+export type ClinicianSession = {
+  access_token: string;
+  expires_at: number;
+  clinician: ClinicianIdentity;
+};
+
+const CLINICIAN_SESSION_KEY = "medintel.clinician.session";
+const CLINICIAN_AUTH_EVENT = "medintel-auth-changed";
+
+function emitClinicianAuthChanged(): void {
+  window.dispatchEvent(new Event(CLINICIAN_AUTH_EVENT));
+}
+
+export function clearClinicianSession(): void {
+  window.sessionStorage.removeItem(CLINICIAN_SESSION_KEY);
+  emitClinicianAuthChanged();
+}
+
+export function getStoredClinicianSession(): ClinicianSession | null {
+  const raw = window.sessionStorage.getItem(CLINICIAN_SESSION_KEY);
+
+  if (!raw) {
+    return null;
+  }
+
+  try {
+    const candidate = JSON.parse(raw) as Partial<ClinicianSession>;
+
+    const valid =
+      typeof candidate.access_token === "string" &&
+      candidate.access_token.length > 0 &&
+      typeof candidate.expires_at === "number" &&
+      candidate.expires_at > Date.now() &&
+      typeof candidate.clinician?.username === "string" &&
+      candidate.clinician.username.length > 0 &&
+      candidate.clinician.role === "clinician";
+
+    if (valid) {
+      return candidate as ClinicianSession;
+    }
+  } catch {
+    // Invalid session data is discarded below.
+  }
+
+  clearClinicianSession();
+  return null;
+}
+
+function storeClinicianSession(session: ClinicianSession): void {
+  window.sessionStorage.setItem(
+    CLINICIAN_SESSION_KEY,
+    JSON.stringify(session),
+  );
+
+  emitClinicianAuthChanged();
+}
+
+export function subscribeClinicianSession(
+  listener: () => void,
+): () => void {
+  window.addEventListener(
+    CLINICIAN_AUTH_EVENT,
+    listener,
+  );
+
+  return () => {
+    window.removeEventListener(
+      CLINICIAN_AUTH_EVENT,
+      listener,
+    );
+  };
+}
+
 async function requestJson<T>(
   url: string,
   init: RequestInit = {},
@@ -129,6 +215,18 @@ async function requestJson<T>(
   const headers = new Headers(init.headers);
   headers.set("Accept", "application/json");
 
+  const clinicianSession = getStoredClinicianSession();
+
+  if (
+    clinicianSession &&
+    !headers.has("Authorization")
+  ) {
+    headers.set(
+      "Authorization",
+      `Bearer ${clinicianSession.access_token}`,
+    );
+  }
+
   try {
     const response = await fetch(url, {
       ...init,
@@ -137,6 +235,13 @@ async function requestJson<T>(
     });
 
     const body = await response.text();
+
+    if (
+      response.status === 401 &&
+      url !== "/api/v1/auth/login"
+    ) {
+      clearClinicianSession();
+    }
 
     if (!response.ok) {
       throw new Error(
@@ -148,6 +253,49 @@ async function requestJson<T>(
   } finally {
     window.clearTimeout(timeout);
   }
+}
+
+export async function loginClinician(
+  username: string,
+  password: string,
+): Promise<ClinicianSession> {
+  const response =
+    await requestJson<ClinicianTokenResponse>(
+      "/api/v1/auth/login",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username,
+          password,
+        }),
+      },
+      30_000,
+    );
+
+  const session: ClinicianSession = {
+    access_token: response.access_token,
+    expires_at:
+      Date.now() +
+      response.expires_in_seconds * 1000,
+    clinician: response.clinician,
+  };
+
+  storeClinicianSession(session);
+
+  return session;
+}
+
+export async function getCurrentClinician(): Promise<ClinicianIdentity> {
+  return requestJson<ClinicianIdentity>(
+    "/api/v1/auth/me",
+    {
+      method: "GET",
+    },
+    30_000,
+  );
 }
 
 export async function getAssessmentQuestionnaire(): Promise<AssessmentQuestionnaire> {

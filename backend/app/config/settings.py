@@ -22,9 +22,13 @@ class Settings(BaseSettings):
 
 
     # Authentication
-    JWT_SECRET: str = "YOUR_GENERATED_SECRET_HERE"
+    # Local research-prototype clinician boundary.
+    # Empty defaults intentionally fail closed until .env is configured.
+    JWT_SECRET: str = ""
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24
+    CLINICIAN_USERNAME: str = ""
+    CLINICIAN_PASSWORD_HASH: str = ""
 
     # XGBoost model artifacts
     XGB_MODEL_PATH: str = "models/xgboost/model.pkl"
