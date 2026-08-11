@@ -22,15 +22,6 @@ class PatientService:
         data["id"] = patient_id
         return PatientResponse(**data)
 
-    def list_patients(self) -> list[PatientResponse]:
-        documents = self.db.list_documents(self.COLLECTION)
-        patients = []
-        for doc in documents:
-            if "id" not in doc:
-                continue
-            patients.append(PatientResponse(**doc))
-        return patients
-
     def update_patient(self, patient_id: str, update_data: PatientUpdate) -> bool:
         if not self.get_patient(patient_id):
             return False

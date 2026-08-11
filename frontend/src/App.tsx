@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   Activity,
   ClipboardPlus,
@@ -19,14 +19,23 @@ import {
   Navigate,
   Route,
   Routes,
+  useLocation,
+  useNavigate,
 } from "react-router-dom";
 import "./styles.css";
 import {
-  createPatient,
-  getPatients,
+  clearClinicianSession,
+  getAssessmentQuestionnaire,
+  getCurrentClinician,
+  getStoredClinicianSession,
+  loginClinician,
+  prepareAssessment,
   runClinicalWorkflow,
   runVerifiedSyntheticWorkflow,
-  type PatientRecord,
+  subscribeClinicianSession,
+  type AssessmentQuestion,
+  type AssessmentQuestionnaire,
+  type ClinicianSession,
   type WorkflowResponse,
 } from "./api";
 
@@ -84,7 +93,180 @@ const navItems = [
   { to: "/settings", label: "Settings", icon: Settings },
 ];
 
+
+function AuthLoadingScreen() {
+  return (
+    <div className="auth-screen theme-dark">
+      <section className="auth-card">
+        <div className="auth-brand">
+          <div className="brand-mark">
+            <ShieldCheck size={22} />
+          </div>
+
+          <div>
+            <span className="eyebrow">MedIntel</span>
+            <h1>Verifying clinician session</h1>
+          </div>
+        </div>
+
+        <p className="auth-description">
+          Confirming the local clinician access boundary before opening
+          decision-support tools.
+        </p>
+
+        <div className="auth-loading-row">
+          <Activity size={19} className="spin" />
+          <span>Checking authenticated session...</span>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+function ClinicianLoginPage({
+  onAuthenticated,
+}: {
+  onAuthenticated: (session: ClinicianSession) => void;
+}) {
+  const [username, setUsername] = useState("clinician");
+  const [password, setPassword] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleLogin(
+    event: FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault();
+
+    const normalizedUsername = username.trim();
+
+    if (!normalizedUsername || !password) {
+      setError("Enter the clinician username and password.");
+      return;
+    }
+
+    setSubmitting(true);
+    setError(null);
+
+    try {
+      const session = await loginClinician(
+        normalizedUsername,
+        password,
+      );
+
+      setPassword("");
+      onAuthenticated(session);
+    } catch {
+      setError(
+        "Sign-in failed. Check the clinician credentials and try again.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="auth-screen theme-dark">
+      <section className="auth-card">
+        <div className="auth-brand">
+          <div className="brand-mark">
+            <ShieldCheck size={22} />
+          </div>
+
+          <div>
+            <span className="eyebrow">MedIntel</span>
+            <h1>Clinician sign in</h1>
+          </div>
+        </div>
+
+        <p className="auth-description">
+          Local research-prototype access for the clinician-controlled
+          respiratory decision-support workspace.
+        </p>
+
+        <form
+          className="auth-form"
+          onSubmit={handleLogin}
+        >
+          <label>
+            <span>Clinician username</span>
+            <input
+              type="text"
+              autoComplete="username"
+              value={username}
+              onChange={(event) =>
+                setUsername(event.target.value)
+              }
+              disabled={submitting}
+              maxLength={128}
+              required
+            />
+          </label>
+
+          <label>
+            <span>Password</span>
+            <input
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) =>
+                setPassword(event.target.value)
+              }
+              disabled={submitting}
+              maxLength={256}
+              required
+            />
+          </label>
+
+          {error && (
+            <div
+              className="auth-error"
+              role="alert"
+            >
+              {error}
+            </div>
+          )}
+
+          <button
+            className="button button-primary auth-submit"
+            type="submit"
+            disabled={
+              submitting ||
+              !username.trim() ||
+              !password
+            }
+          >
+            {submitting
+              ? "Signing in..."
+              : "Sign in to clinician workspace"}
+          </button>
+        </form>
+
+        <div className="auth-safety-note">
+          <ShieldCheck size={18} />
+
+          <p>
+            Authentication controls access only. MedIntel remains
+            clinical decision support; diagnosis and treatment decisions
+            remain with the doctor.
+          </p>
+        </div>
+      </section>
+    </div>
+  );
+}
+
 function AppShell() {
+  const [session, setSession] =
+    useState<ClinicianSession | null>(
+      () => getStoredClinicianSession(),
+    );
+
+  const [authChecking, setAuthChecking] =
+    useState(
+      () => getStoredClinicianSession() !== null,
+    );
+
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [dark, setDark] = useState(true);
 
@@ -92,6 +274,79 @@ function AppShell() {
     () => `app-shell ${dark ? "theme-dark" : "theme-light"}`,
     [dark],
   );
+
+  useEffect(() => {
+    return subscribeClinicianSession(() => {
+      setSession(
+        getStoredClinicianSession(),
+      );
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!session) {
+      setAuthChecking(false);
+      return;
+    }
+
+    let cancelled = false;
+
+    setAuthChecking(true);
+
+    void getCurrentClinician()
+      .then((identity) => {
+        if (cancelled) {
+          return;
+        }
+
+        if (
+          identity.role !== "clinician" ||
+          identity.username !== session.clinician.username
+        ) {
+          clearClinicianSession();
+          setSession(null);
+          setAuthChecking(false);
+          return;
+        }
+
+        setAuthChecking(false);
+      })
+      .catch(() => {
+        if (cancelled) {
+          return;
+        }
+
+        clearClinicianSession();
+        setSession(null);
+        setAuthChecking(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [session]);
+
+  function handleLogout() {
+    clearClinicianSession();
+    setSession(null);
+    setSidebarOpen(false);
+  }
+
+  if (authChecking) {
+    return <AuthLoadingScreen />;
+  }
+
+  if (!session) {
+    return (
+      <ClinicianLoginPage
+        onAuthenticated={(nextSession) => {
+          setAuthChecking(true);
+          setSession(nextSession);
+        }}
+      />
+    );
+  }
+
 
   return (
     <div className={shellClass}>
@@ -161,7 +416,7 @@ function AppShell() {
 
           <div className="topbar-status">
             <span className="status-dot" />
-            <span>Phase 5 - Frontend ready</span>
+            <span>Phase 5 - Frontend implementation</span>
           </div>
 
           <div className="topbar-actions">
@@ -173,24 +428,47 @@ function AppShell() {
             >
               {dark ? <Sun size={19} /> : <Moon size={19} />}
             </button>
-            <div className="doctor-chip" aria-label="Clinician profile placeholder">
+            <div className="doctor-chip" aria-label="Authenticated clinician">
               <div className="doctor-avatar">DR</div>
               <div>
-                <strong>Doctor workspace</strong>
-                <span>Authentication pending</span>
+                <strong>{session.clinician.username}</strong>
+                <span>Authenticated clinician</span>
               </div>
             </div>
+
+            <button
+              className="button button-secondary auth-logout-button"
+              type="button"
+              onClick={handleLogout}
+            >
+              Sign out
+            </button>
           </div>
         </header>
 
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/patients" element={<PatientsPage />} />
-          <Route path="/assessment" element={<AssessmentPage />} />
-          <Route path="/decision-support" element={<DecisionSupportPage />} />
-          <Route path="/reports" element={<ReportsPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
+          <Route
+            path="/patients"
+            element={<PlaceholderPage meta={pages.patients} />}
+          />
+          <Route
+            path="/assessment"
+            element={<AssessmentPage />}
+          />
+          <Route
+            path="/decision-support"
+            element={<DecisionSupportPage />}
+          />
+          <Route
+            path="/reports"
+            element={<PlaceholderPage meta={pages.reports} />}
+          />
+          <Route
+            path="/settings"
+            element={<PlaceholderPage meta={pages.settings} />}
+          />
           <Route path="*" element={<Navigate to="/dashboard" replace />} />
         </Routes>
       </main>
@@ -215,14 +493,6 @@ function PageHeader({ meta }: { meta: PageMeta }) {
 }
 
 function Dashboard() {
-  const [recentPatients, setRecentPatients] = useState<PatientRecord[]>([]);
-
-  useEffect(() => {
-    getPatients()
-      .then((patients) => setRecentPatients(patients.slice(0, 3)))
-      .catch(() => setRecentPatients([]));
-  }, []);
-
   return (
     <div className="page">
       <PageHeader meta={pages.dashboard} />
@@ -232,8 +502,9 @@ function Dashboard() {
           <span className="hero-kicker">Doctor-first workflow</span>
           <h2>Move from structured assessment to reviewed AI support.</h2>
           <p>
-            Phase 5 & 6 connect the existing FastAPI, XGBoost, and local MedGemma
-            workflow to a clinician-facing interface with real-time validation and reporting.
+            Phase 5 connects the existing FastAPI, XGBoost, and local MedGemma
+            workflow to a clear clinician interface while preserving model
+            authority and safety constraints.
           </p>
           <div className="hero-actions">
             <NavLink className="button button-primary" to="/assessment">
@@ -274,8 +545,8 @@ function Dashboard() {
         />
         <StatusCard
           label="Frontend"
-          value="Complete"
-          note="Doctor-facing workflow implemented"
+          value="Phase 5"
+          note="Implementation started"
         />
       </section>
 
@@ -283,43 +554,40 @@ function Dashboard() {
         <div className="panel">
           <div className="panel-heading">
             <div>
-              <span className="eyebrow">Recent Activity</span>
-              <h3>Recently active patients</h3>
+              <span className="eyebrow">Planned workflow</span>
+              <h3>Clinical assessment path</h3>
             </div>
           </div>
           <div className="workflow-list">
-            {recentPatients.length > 0 ? (
-              recentPatients.map((patient) => (
-                <div className="workflow-item" key={patient.id}>
-                  <span>ID: {patient.id.slice(0, 4)}</span>
-                  <div>
-                    <strong>{patient.first_name} {patient.last_name}</strong>
-                    <p>DOB: {patient.date_of_birth}</p>
-                  </div>
+            {[
+              ["01", "Patient context", "Demographics and encounter context"],
+              ["02", "Clinical assessment", "Symptoms, history, vitals, examination"],
+              ["03", "XGBoost ranking", "Authoritative differential candidates"],
+              ["04", "MedGemma reasoning", "Constrained context around existing candidates"],
+              ["05", "Doctor review", "Explicit clinician approval remains mandatory"],
+            ].map(([step, title, note]) => (
+              <div className="workflow-item" key={step}>
+                <span>{step}</span>
+                <div>
+                  <strong>{title}</strong>
+                  <p>{note}</p>
                 </div>
-              ))
-            ) : (
-              <div className="empty-inline" style={{ marginTop: "1rem" }}>
-                <p>No recent patients found.</p>
               </div>
-            )}
-          </div>
-          <div style={{ marginTop: "1rem" }}>
-             <NavLink to="/patients" className="button button-secondary" style={{ width: "100%", justifyContent: "center" }}>
-                View all patients
-             </NavLink>
+            ))}
           </div>
         </div>
 
         <div className="panel">
           <span className="eyebrow">Current scope</span>
-          <h3>What Phase 6 Adds</h3>
+          <h3>What Phase 5 will add</h3>
           <ul className="check-list">
-            <li>Dashboard recent activity feed</li>
-            <li>Real-time form validation</li>
-            <li>Structured report generation UI</li>
-            <li>Error and empty state polish</li>
-            <li>Printable clinical reports</li>
+            <li>Responsive clinician dashboard</li>
+            <li>Structured assessment form</li>
+            <li>Backend workflow API integration</li>
+            <li>Top-ranked differential visualization</li>
+            <li>Critical considerations separated from ranking</li>
+            <li>Constrained MedGemma reasoning presentation</li>
+            <li>Doctor review and approval controls</li>
           </ul>
         </div>
       </section>
@@ -345,517 +613,543 @@ function StatusCard({
   );
 }
 
-function PatientsPage() {
-  const [patientsLoading, setPatientsLoading] = useState(false);
-  const [patientsError, setPatientsError] = useState<string | null>(null);
-  const [patientList, setPatientList] = useState<PatientRecord[]>([]);
+
+type AssessmentValue = string | boolean | number | string[];
+
+function AssessmentPage() {
+  const navigate = useNavigate();
+
+  const [questionnaire, setQuestionnaire] =
+    useState<AssessmentQuestionnaire | null>(null);
+
+  const [age, setAge] = useState(45);
+  const [sex, setSex] = useState<"M" | "F">("M");
+  const [initialEvidence, setInitialEvidence] = useState("");
+  const [answers, setAnswers] =
+    useState<Record<string, AssessmentValue>>({});
+  const [questionSearch, setQuestionSearch] = useState("");
+
+  const [loadingQuestionnaire, setLoadingQuestionnaire] = useState(true);
+  const [running, setRunning] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    async function loadPatients() {
-      setPatientsLoading(true);
-      setPatientsError(null);
+    let active = true;
 
+    async function loadQuestionnaire() {
       try {
-        const list = await getPatients();
-        setPatientList(list);
-      } catch (error) {
-        setPatientsError(
-          error instanceof Error
-            ? error.message
-            : "Failed to load patient list.",
+        const response = await getAssessmentQuestionnaire();
+
+        if (!active) {
+          return;
+        }
+
+        setQuestionnaire(response);
+        setInitialEvidence(response.initial_evidence_codes[0] ?? "");
+      } catch (requestError) {
+        if (!active) {
+          return;
+        }
+
+        setError(
+          requestError instanceof Error
+            ? requestError.message
+            : "Unable to load the assessment questionnaire.",
         );
       } finally {
-        setPatientsLoading(false);
+        if (active) {
+          setLoadingQuestionnaire(false);
+        }
       }
     }
 
-    loadPatients();
+    void loadQuestionnaire();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
-  return (
-    <div className="page">
-      <PageHeader meta={pages.patients} />
-      <section className="panel">
-        <div className="panel-heading">
-          <div>
-            <span className="eyebrow">Patient roster</span>
-            <h3>Active clinical cases</h3>
-          </div>
+  const visibleQuestions = useMemo(() => {
+    if (!questionnaire) {
+      return [];
+    }
+
+    const search = questionSearch.trim().toLowerCase();
+
+    return questionnaire.questions.filter((question) => {
+      if (question.code === initialEvidence) {
+        return false;
+      }
+
+      if (!search) {
+        return true;
+      }
+
+      return (
+        question.code.toLowerCase().includes(search) ||
+        question.question.toLowerCase().includes(search)
+      );
+    });
+  }, [initialEvidence, questionSearch, questionnaire]);
+
+  function updateAnswer(
+    code: string,
+    value: AssessmentValue | null,
+  ) {
+    setAnswers((current) => {
+      const next = { ...current };
+
+      if (
+        value === null ||
+        value === "" ||
+        (Array.isArray(value) && value.length === 0)
+      ) {
+        delete next[code];
+      } else {
+        next[code] = value;
+      }
+
+      return next;
+    });
+  }
+
+  function renderAnswerControl(question: AssessmentQuestion) {
+    const value = answers[question.code];
+
+    if (question.answer_kind === "binary") {
+      return (
+        <select
+          className="assessment-input"
+          value={typeof value === "boolean" ? String(value) : ""}
+          onChange={(event) => {
+            if (event.target.value === "") {
+              updateAnswer(question.code, null);
+              return;
+            }
+
+            updateAnswer(
+              question.code,
+              event.target.value === "true",
+            );
+          }}
+        >
+          <option value="">Not answered</option>
+          {question.options.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      );
+    }
+
+    if (question.answer_kind === "scale") {
+      return (
+        <input
+          className="assessment-input"
+          type="number"
+          min={question.scale_min ?? undefined}
+          max={question.scale_max ?? undefined}
+          step={1}
+          value={typeof value === "number" ? value : ""}
+          placeholder={
+            question.scale_min !== null && question.scale_max !== null
+              ? `${question.scale_min} - ${question.scale_max}`
+              : "Enter value"
+          }
+          onChange={(event) => {
+            updateAnswer(
+              question.code,
+              event.target.value === ""
+                ? null
+                : Number(event.target.value),
+            );
+          }}
+        />
+      );
+    }
+
+    if (question.answer_kind === "multi_select") {
+      const selected = Array.isArray(value) ? value : [];
+
+      return (
+        <div className="assessment-options">
+          {question.options.map((option) => {
+            const checked = selected.includes(option.value);
+
+            return (
+              <label
+                className="assessment-option"
+                key={option.value}
+              >
+                <input
+                  type="checkbox"
+                  checked={checked}
+                  onChange={(event) => {
+                    const next = event.target.checked
+                      ? [...selected, option.value]
+                      : selected.filter(
+                          (selectedValue) =>
+                            selectedValue !== option.value,
+                        );
+
+                    updateAnswer(
+                      question.code,
+                      next.length > 0 ? next : null,
+                    );
+                  }}
+                />
+                <span>{option.label}</span>
+              </label>
+            );
+          })}
         </div>
+      );
+    }
 
-        {patientsLoading ? (
-          <div className="empty-inline">
-            <Activity size={24} />
-            <div>
-              <strong>Loading patients...</strong>
-              <p>Fetching active cases from the backend.</p>
-            </div>
-          </div>
-        ) : patientsError ? (
-          <div className="clinical-error">
-            <strong>Unable to load patients</strong>
-            <p>{patientsError}</p>
-          </div>
-        ) : patientList.length === 0 ? (
-          <div className="empty-inline">
-            <Users size={24} />
-            <div>
-              <strong>No patients available yet</strong>
-              <p>Submit the first assessment to create a patient record.</p>
-            </div>
-          </div>
-        ) : (
-          <div className="patient-grid">
-            {patientList.map((patient) => (
-              <article className="patient-card" key={patient.id}>
-                <strong>
-                  {patient.first_name} {patient.last_name}
-                </strong>
-                <span>Age {patient.date_of_birth}</span>
-                <p>{patient.medical_history_summary ?? "No history provided."}</p>
-                <span className="status-pill">Patient ID {patient.id}</span>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
-    </div>
-  );
-}
+    if (question.options.length > 0) {
+      return (
+        <select
+          className="assessment-input"
+          value={typeof value === "string" ? value : ""}
+          onChange={(event) =>
+            updateAnswer(
+              question.code,
+              event.target.value || null,
+            )
+          }
+        >
+          <option value="">Not answered</option>
+          {question.options.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      );
+    }
 
-function AssessmentPage() {
-  const [patientFirstName, setPatientFirstName] = useState("Aisha");
-  const [patientLastName, setPatientLastName] = useState("Patel");
-  const [patientDOB, setPatientDOB] = useState("1984-06-09");
-  const [patientGender, setPatientGender] = useState<"M" | "F">("F");
-  const [age, setAge] = useState(45);
-  const [sex, setSex] = useState<"M" | "F">("M");
-  const [symptoms, setSymptoms] = useState("cough, fever");
-  const [symptomDuration, setSymptomDuration] = useState("3 days");
-  const [evidenceTokens, setEvidenceTokens] = useState("E_100");
-  const [result, setResult] = useState<WorkflowResponse | null>(null);
-  const [running, setRunning] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [patientCreated, setPatientCreated] = useState(false);
-  const [patientId, setPatientId] = useState<string | null>(null);
-  const [patientList, setPatientList] = useState<PatientRecord[]>([]);
-  const [patientsLoading, setPatientsLoading] = useState(false);
-  const [patientsError, setPatientsError] = useState<string | null>(null);
-  const [formErrors, setFormErrors] = useState<Record<string, string>>({});
+    return (
+      <input
+        className="assessment-input"
+        type="text"
+        value={typeof value === "string" ? value : ""}
+        placeholder="Not answered"
+        onChange={(event) =>
+          updateAnswer(
+            question.code,
+            event.target.value || null,
+          )
+        }
+      />
+    );
+  }
 
-  async function submitAssessment() {
-    setRunning(true);
-    setError(null);
-    setFormErrors({});
+  async function submitAssessment(
+    event: FormEvent<HTMLFormElement>,
+  ) {
+    event.preventDefault();
 
-    const newErrors: Record<string, string> = {};
-    if (!patientFirstName.trim()) newErrors.firstName = "First name is required.";
-    if (!patientLastName.trim()) newErrors.lastName = "Last name is required.";
-    if (age <= 0 || age > 120) newErrors.age = "Age must be between 1 and 120.";
-    if (!symptoms.trim() || symptoms.trim().length < 3) newErrors.symptoms = "Please provide valid symptoms.";
-
-    if (Object.keys(newErrors).length > 0) {
-      setFormErrors(newErrors);
-      setRunning(false);
+    if (!initialEvidence) {
+      setError("Select an initial evidence before continuing.");
       return;
     }
 
-    const patientPayload = {
-      first_name: patientFirstName,
-      last_name: patientLastName,
-      date_of_birth: patientDOB,
-      gender: patientGender,
-      medical_history_summary: "No prior summary.",
-    };
+    setRunning(true);
+    setError(null);
 
     try {
-      let targetPatientId = patientId;
+      const assessmentAnswers = Object.entries(answers)
+        .filter(([code]) => code !== initialEvidence)
+        .map(([code, value]) => ({
+          code,
+          value,
+        }));
 
-      if (!patientCreated) {
-        const patient = await createPatient(patientPayload);
-        setPatientId(patient.id);
-        setPatientCreated(true);
-        targetPatientId = patient.id;
-      }
-
-      if (!targetPatientId) {
-        throw new Error("Unable to resolve patient ID before submitting assessment.");
-      }
-
-      const patientContext = {
-        AGE: age,
-        SEX_MALE_CODE: sex === "M" ? 1 : 0,
-        NONINITIAL_EVIDENCE_COUNT: 0,
-        QUESTIONNAIRE_COMPLETION_FRACTION: 1.0,
-        INITIAL_EVIDENCE_ONLY: 1,
-        CONSULTATION_STAGE_CODE: 0,
-        patient_id: targetPatientId,
+      const prepared = await prepareAssessment({
         age,
         sex,
-        symptoms: symptoms
-          .split(",")
-          .map((item) => item.trim())
-          .filter(Boolean),
-        symptom_duration: symptomDuration,
-        evidence_tokens: evidenceTokens
-          .split(",")
-          .map((token) => token.trim())
-          .filter(Boolean),
-      };
+        initial_evidence: initialEvidence,
+        answers: assessmentAnswers,
+      });
 
-      const response = await runClinicalWorkflow(patientContext);
-      setResult(response);
+      if (!prepared.patient_context) {
+        throw new Error(
+          "Assessment preparation returned no patient_context.",
+        );
+      }
+
+      const workflow =
+        await runClinicalWorkflow(prepared.patient_context);
+
+      navigate("/decision-support", {
+        state: {
+          workflowResult: workflow,
+        },
+      });
     } catch (requestError) {
-      const message =
+      setError(
         requestError instanceof Error
           ? requestError.message
-          : "The workflow request failed.";
-      setError(message);
-      setResult(null);
+          : "Assessment workflow failed.",
+      );
     } finally {
       setRunning(false);
     }
   }
 
-  useEffect(() => {
-    async function loadPatients() {
-      setPatientsLoading(true);
-      setPatientsError(null);
+  if (loadingQuestionnaire) {
+    return (
+      <div className="page">
+        <PageHeader meta={pages.assessment} />
 
-      try {
-        const list = await getPatients();
-        setPatientList(list);
-      } catch (error) {
-        setPatientsError(
-          error instanceof Error
-            ? error.message
-            : "Failed to load patients.",
-        );
-      } finally {
-        setPatientsLoading(false);
-      }
-    }
+        <section className="model-progress">
+          <Activity size={20} className="spin" />
+          <div>
+            <strong>Loading model-scoped questionnaire</strong>
+            <p>
+              MedIntel is loading the live assessment contract from
+              the backend.
+            </p>
+          </div>
+        </section>
+      </div>
+    );
+  }
 
-    loadPatients();
-  }, []);
+  if (!questionnaire) {
+    return (
+      <div className="page">
+        <PageHeader meta={pages.assessment} />
+
+        <section className="clinical-error">
+          <strong>Assessment questionnaire unavailable</strong>
+          <p>{error ?? "The questionnaire could not be loaded."}</p>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="page">
       <PageHeader meta={pages.assessment} />
 
-      <section className="panel">
-        <div className="panel-heading">
-          <div>
-            <span className="eyebrow">Clinical intake</span>
-            <h3>Submit structured patient context</h3>
-          </div>
-        </div>
-
-        <div className="form-grid">
-          <label>
-            First name
-            <input
-              type="text"
-              className={formErrors.firstName ? "input-error" : ""}
-              value={patientFirstName}
-              onChange={(event) => setPatientFirstName(event.target.value)}
-            />
-            {formErrors.firstName && <span className="error-message">{formErrors.firstName}</span>}
-          </label>
-
-          <label>
-            Last name
-            <input
-              type="text"
-              className={formErrors.lastName ? "input-error" : ""}
-              value={patientLastName}
-              onChange={(event) => setPatientLastName(event.target.value)}
-            />
-            {formErrors.lastName && <span className="error-message">{formErrors.lastName}</span>}
-          </label>
-
-          <label>
-            Date of birth
-            <input
-              type="date"
-              value={patientDOB}
-              onChange={(event) => setPatientDOB(event.target.value)}
-            />
-          </label>
-
-          <label>
-            Biological sex
-            <select
-              value={patientGender}
-              onChange={(event) =>
-                setPatientGender(event.target.value === "M" ? "M" : "F")
-              }
-            >
-              <option value="M">Male</option>
-              <option value="F">Female</option>
-            </select>
-          </label>
-
-          <label>
-            Age
-            <input
-              type="number"
-              min={0}
-              className={formErrors.age ? "input-error" : ""}
-              value={age}
-              onChange={(event) => setAge(Number(event.target.value))}
-            />
-            {formErrors.age && <span className="error-message">{formErrors.age}</span>}
-          </label>
-
-          <label>
-            Biological sex
-            <select
-              value={sex}
-              onChange={(event) =>
-                setSex(event.target.value === "M" ? "M" : "F")
-              }
-            >
-              <option value="M">Male</option>
-              <option value="F">Female</option>
-            </select>
-          </label>
-
-          <label>
-            Symptom duration
-            <input
-              type="text"
-              value={symptomDuration}
-              onChange={(event) => setSymptomDuration(event.target.value)}
-            />
-          </label>
-
-          <label className="full-width">
-            Symptoms
-            <textarea
-              className={formErrors.symptoms ? "input-error" : ""}
-              value={symptoms}
-              onChange={(event) => setSymptoms(event.target.value)}
-              rows={3}
-            />
-            {formErrors.symptoms && <span className="error-message">{formErrors.symptoms}</span>}
-          </label>
-
-          <label className="full-width">
-            Evidence tokens
-            <input
-              type="text"
-              value={evidenceTokens}
-              onChange={(event) => setEvidenceTokens(event.target.value)}
-            />
-            <small>
-              Use comma-separated evidence tokens such as E_100, E_101.
-            </small>
-          </label>
-        </div>
-
-        <button
-          className="button button-primary"
-          type="button"
-          disabled={running}
-          onClick={submitAssessment}
-        >
-          <Activity size={18} className={running ? "spin" : ""} />
-          {running ? "Running workflow..." : "Submit assessment"}
-        </button>
-
-        {error && (
-          <section className="clinical-error">
-            <strong>Assessment failed</strong>
-            <p>{error}</p>
-          </section>
-        )}
-      </section>
-
-      {result && (
+      <form onSubmit={submitAssessment}>
         <section className="panel">
           <div className="panel-heading">
             <div>
-              <span className="eyebrow">Workflow result</span>
-              <h3>Clinical decision support output</h3>
+              <span className="eyebrow">Step 1</span>
+              <h3>Patient and encounter context</h3>
             </div>
           </div>
 
-          <div className="prediction-list">
-            {result.predictions.map((prediction) => (
-              <article className="prediction-row" key={prediction.rank}>
-                <div className="rank-badge">{prediction.rank}</div>
-                <div className="prediction-main">
-                  <strong>{prediction.disease}</strong>
-                  <span>{prediction.confidence} confidence</span>
+          <div className="assessment-grid">
+            <label className="assessment-field">
+              <span>Age</span>
+              <input
+                className="assessment-input"
+                type="number"
+                min={0}
+                max={120}
+                required
+                value={age}
+                onChange={(event) =>
+                  setAge(Number(event.target.value))
+                }
+              />
+            </label>
+
+            <label className="assessment-field">
+              <span>Sex</span>
+              <select
+                className="assessment-input"
+                value={sex}
+                onChange={(event) =>
+                  setSex(event.target.value as "M" | "F")
+                }
+              >
+                <option value="M">Male</option>
+                <option value="F">Female</option>
+              </select>
+            </label>
+
+            <label className="assessment-field assessment-field-wide">
+              <span>Initial evidence / reason for consultation</span>
+
+              <select
+                className="assessment-input"
+                required
+                value={initialEvidence}
+                onChange={(event) => {
+                  const code = event.target.value;
+
+                  setInitialEvidence(code);
+
+                  if (code) {
+                    updateAnswer(code, null);
+                  }
+                }}
+              >
+                <option value="">Select initial evidence</option>
+
+                {questionnaire.initial_evidence_codes.map((code) => {
+                  const question = questionnaire.questions.find(
+                    (item) => item.code === code,
+                  );
+
+                  return (
+                    <option key={code} value={code}>
+                      {question
+                        ? `${code} - ${question.question}`
+                        : code}
+                    </option>
+                  );
+                })}
+              </select>
+            </label>
+          </div>
+        </section>
+
+        <section className="panel assessment-questionnaire">
+          <div className="assessment-toolbar">
+            <div>
+              <span className="eyebrow">Step 2</span>
+              <h3>Model-scoped clinical questionnaire</h3>
+              <p>
+                Answer only information that is actually known.
+                Unanswered items are not submitted to the model.
+              </p>
+            </div>
+
+            <div className="assessment-count">
+              {Object.keys(answers).length} answered
+            </div>
+          </div>
+
+          <input
+            className="assessment-input assessment-search"
+            type="search"
+            value={questionSearch}
+            placeholder="Search questionnaire by evidence code or question"
+            onChange={(event) =>
+              setQuestionSearch(event.target.value)
+            }
+          />
+
+          <div className="assessment-question-list">
+            {visibleQuestions.map((question) => (
+              <article
+                className="assessment-question"
+                key={question.code}
+              >
+                <div className="assessment-question-heading">
+                  <div>
+                    <span className="question-code">
+                      {question.code}
+                    </span>
+                    <strong>{question.question}</strong>
+                  </div>
+
+                  <span className="question-kind">
+                    {question.answer_kind.replaceAll("_", " ")}
+                  </span>
                 </div>
-                <div className="probability-block">
-                  <strong>
-                    {(prediction.probability * 100).toFixed(1)}%
-                  </strong>
-                  <span>model probability</span>
+
+                <div className="assessment-control">
+                  {renderAnswerControl(question)}
                 </div>
               </article>
             ))}
           </div>
-
-          <div className="reasoning-stack">
-            <div className="reasoning-card">
-              <div className="reasoning-card-heading">
-                <span>Summary</span>
-                <strong>Clinical reasoning</strong>
-              </div>
-              <p>{result.reasoning.reasoning_summary}</p>
-            </div>
-          </div>
-
-          <div className="workflow-meta">
-            <div>
-              <span>Workflow</span>
-              <strong>{result.workflow_status}</strong>
-            </div>
-            <div>
-              <span>Doctor review</span>
-              <strong>
-                {result.requires_doctor_review ? "Required" : "Not required"}
-              </strong>
-            </div>
-            <div>
-              <span>Approval</span>
-              <strong>{result.doctor_approval_status}</strong>
-            </div>
-          </div>
         </section>
-      )}
-    </div>
-  );
-}
 
-function ReportsPage() {
-  const [patients, setPatients] = useState<PatientRecord[]>([]);
-  const [selectedPatient, setSelectedPatient] = useState<string | null>(null);
+        {error && (
+          <section className="clinical-error">
+            <strong>Assessment workflow failed</strong>
+            <p>{error}</p>
+          </section>
+        )}
 
-  useEffect(() => {
-    getPatients().then(setPatients).catch(console.error);
-  }, []);
-
-  const patient = patients.find((p) => p.id === selectedPatient);
-
-  return (
-    <div className="page">
-      <PageHeader meta={pages.reports} />
-      
-      <div className="no-print">
-        <section className="panel">
-          <div className="panel-heading">
-            <div>
-              <span className="eyebrow">Report Generation</span>
-              <h3>Select a patient to generate report</h3>
-            </div>
-          </div>
-          <div className="form-grid">
-            <label className="full-width">
-              Select Patient
-              <select 
-                value={selectedPatient || ""} 
-                onChange={(e) => setSelectedPatient(e.target.value)}
-              >
-                <option value="">-- Choose a patient --</option>
-                {patients.map(p => (
-                  <option key={p.id} value={p.id}>
-                    {p.first_name} {p.last_name} (ID: {p.id.slice(0, 8)})
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          {patient && (
-            <button 
-              className="button button-primary"
-              onClick={() => window.print()}
-              style={{ marginTop: "1rem" }}
-            >
-              <FileText size={18} /> Print / Save as PDF
-            </button>
-          )}
-        </section>
-      </div>
-
-      {patient && (
-        <section className="panel print-only report-container">
-          <div className="report-header">
-            <h2>MedIntel Clinical Report</h2>
-            <p><strong>Date:</strong> {new Date().toLocaleDateString()}</p>
-          </div>
-          
-          <div className="report-section">
-            <h3>Patient Information</h3>
-            <p><strong>Name:</strong> {patient.first_name} {patient.last_name}</p>
-            <p><strong>DOB:</strong> {patient.date_of_birth} | <strong>Gender:</strong> {patient.gender}</p>
-            <p><strong>Patient ID:</strong> {patient.id}</p>
-          </div>
-
-          <div className="report-section">
-            <h3>Clinical Assessment</h3>
-            <p><strong>Medical History:</strong> {patient.medical_history_summary || "None provided"}</p>
-            <p><em>(Assessment context would appear here if loaded from an encounter API endpoint)</em></p>
-          </div>
-
-          <div className="report-section">
-            <h3>Decision Support Overview</h3>
-            <p><strong>Status:</strong> Awaiting specific encounter details.</p>
-            <div className="clinical-warning" style={{ marginTop: "1rem" }}>
-              <strong>Doctor review required</strong>
-              <p>This report contains AI-generated decision support information that requires clinician review.</p>
-            </div>
-          </div>
-        </section>
-      )}
-    </div>
-  );
-}
-
-function SettingsPage() {
-  return (
-    <div className="page">
-      <PageHeader meta={pages.settings} />
-      <section className="panel">
-        <div className="panel-heading">
+        <section className="assessment-submit-panel">
           <div>
-            <span className="eyebrow">Workspace settings</span>
-            <h3>Runtime configuration overview</h3>
+            <ShieldCheck size={22} />
+            <div>
+              <strong>Doctor review remains mandatory</strong>
+              <p>
+                This prepares model input and requests decision support.
+                It does not establish a diagnosis or authorize treatment.
+              </p>
+            </div>
           </div>
+
+          <button
+            className="button button-primary workflow-run-button"
+            type="submit"
+            disabled={running || !initialEvidence}
+          >
+            <Activity
+              size={18}
+              className={running ? "spin" : ""}
+            />
+
+            {running
+              ? "Running decision support..."
+              : "Prepare assessment & run decision support"}
+          </button>
+        </section>
+
+        {running && (
+          <section className="model-progress">
+            <Activity size={20} className="spin" />
+            <div>
+              <strong>
+                XGBoost and constrained local reasoning are running
+              </strong>
+              <p>
+                Local CPU reasoning can require several minutes.
+                Keep this page open until the workflow completes.
+              </p>
+            </div>
+          </section>
+        )}
+      </form>
+    </div>
+  );
+}
+
+function PlaceholderPage({ meta }: { meta: PageMeta }) {
+  return (
+    <div className="page">
+      <PageHeader meta={meta} />
+      <section className="empty-state">
+        <div className="empty-icon">
+          <ClipboardPlus size={27} />
         </div>
-        <div className="settings-grid">
-          <article className="settings-card">
-            <strong>Data flow</strong>
-            <p>
-              Clinical input flows into the backend workflow API, XGBoost ranks
-              candidates, and local MedGemma adds constrained reasoning.
-            </p>
-          </article>
-          <article className="settings-card">
-            <strong>Review policy</strong>
-            <p>
-              All AI output remains clinician-reviewed. Doctor approval is
-              explicitly required and shown in the workflow response.
-            </p>
-          </article>
-          <article className="settings-card">
-            <strong>Local AI provider</strong>
-            <p>
-              MedGemma reasoning currently runs through a local llama.cpp server
-              and is optional depending on runtime configuration.
-            </p>
-          </article>
-        </div>
+        <span className="eyebrow">Phase 5 module</span>
+        <h2>{meta.title} is next in the build sequence.</h2>
+        <p>
+          The route and product shell are ready. We will implement this module
+          against the existing backend contract instead of filling it with fake
+          clinical behavior.
+        </p>
       </section>
     </div>
   );
 }
 
 function DecisionSupportPage() {
-  const [result, setResult] = useState<WorkflowResponse | null>(null);
+  const location = useLocation();
+
+  const routedResult =
+    (
+      location.state as
+        | { workflowResult?: WorkflowResponse }
+        | null
+    )?.workflowResult ?? null;
+
+  const [result, setResult] =
+    useState<WorkflowResponse | null>(routedResult);
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -886,10 +1180,9 @@ function DecisionSupportPage() {
           <span className="eyebrow">Verified engineering path</span>
           <h3>Run the real Docker model workflow from the browser</h3>
           <p>
-            This uses the same synthetic engineering payload already verified
-            against FastAPI, XGBoost, local MedGemma, safety validation, and
-            doctor-review workflow. E_100 is a technical test token and is not
-            assigned a clinical meaning.
+            The engineering demo now uses the same live assessment preparation
+            contract as the clinician-facing workflow. The browser no longer
+            constructs model evidence tokens or dense inference features itself.
           </p>
         </div>
         <button
@@ -920,6 +1213,20 @@ function DecisionSupportPage() {
         <section className="clinical-error">
           <strong>Workflow request failed</strong>
           <p>{error}</p>
+        </section>
+      )}
+
+      {result?.workflow_status === "NO_DIFFERENTIAL" && (
+        <section className="empty-inline workflow-safe-stop">
+          <ShieldCheck size={24} />
+          <div>
+            <strong>No supported differential returned</strong>
+            <p>
+              The workflow stopped before downstream reasoning because no
+              supported differential candidate was available. Doctor review
+              remains required.
+            </p>
+          </div>
         </section>
       )}
 
@@ -977,7 +1284,7 @@ function DecisionSupportPage() {
             </div>
           ) : (
             <div className="reasoning-stack">
-              {result.reasoning.candidate_reasoning.map((candidate) => (
+              {result.reasoning?.candidate_reasoning.map((candidate) => (
                 <article className="reasoning-card" key={candidate.rank}>
                   <div className="reasoning-card-heading">
                     <span>Rank {candidate.rank}</span>
@@ -989,7 +1296,10 @@ function DecisionSupportPage() {
 
               <div className="summary-card">
                 <span>Reasoning summary</span>
-                <p>{result.reasoning.reasoning_summary}</p>
+                <p>
+                  {result.reasoning?.reasoning_summary ??
+                    "Reasoning unavailable for this workflow result."}
+                </p>
               </div>
             </div>
           )}

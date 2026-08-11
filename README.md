@@ -2,14 +2,14 @@
 
 ### AI-Powered Clinical Decision Support System
 
-> **Empowering clinicians with intelligent, evidence-based decision support — where artificial intelligence informs and the doctor decides.**
+> **Empowering clinicians with intelligent, evidence-based decision support â€” where artificial intelligence informs and the doctor decides.**
 
 ---
 
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Status](https://img.shields.io/badge/status-In%20Development-orange.svg)]()
 [![Backend](https://img.shields.io/badge/backend-FastAPI-009688.svg)](https://fastapi.tiangolo.com)
-[![Frontend](https://img.shields.io/badge/frontend-Phase%205%20Ready-22c55e.svg)]()
+[![Frontend](https://img.shields.io/badge/frontend-Phase%208%20Assessment%20Ready-22c55e.svg)]()
 [![ML](https://img.shields.io/badge/ML-XGBoost-EC6C00.svg)](https://xgboost.readthedocs.io)
 [![LLM](https://img.shields.io/badge/LLM-Local%20MedGemma-6A5ACD.svg)]()
 [![Database](https://img.shields.io/badge/database-PostgreSQL-336791.svg)](https://www.postgresql.org)
@@ -50,15 +50,25 @@ XGBoost remains the authoritative ranking component. MedGemma receives the alrea
 
 > **Clinical Disclaimer:** MedIntel is a decision-support prototype only. It does not autonomously diagnose, prescribe, order medication, or determine patient disposition. All final clinical decisions remain with the treating clinician.
 
+## Phase 8 Technical Acceptance Status
+
+MedIntel has completed its bounded **Phase 8 integrated technical acceptance** as a respiratory clinical decision-support research prototype.
+
+The accepted Phase 8 baseline includes the clinician-facing assessment workflow, local single-clinician JWT authentication boundary, protected clinical APIs, production Nginx frontend serving, health-gated Docker Compose orchestration, restart/recovery checks, and a minimal GitHub CI gate.
+
+This is **not clinical validation or production-clinical certification**. The research workflow uses synthetic DDXPlus v6.2 data; Phase 7 Track-A 7.5F remains incomplete and A5 remains `NOT_ASSESSED`. The local authentication boundary is not production IAM. MedIntel does not autonomously establish a diagnosis or prescription, and the treating doctor retains the final clinical decision.
+
+Phase 8 frozen technical status is documented in [`docs/validation/phase8/PHASE_8_TECHNICAL_ACCEPTANCE_REPORT.md`](docs/validation/phase8/PHASE_8_TECHNICAL_ACCEPTANCE_REPORT.md).
+
 ---
 
 ## Vision
 
-Healthcare professionals face increasing cognitive load — managing complex patient histories, staying current with evolving clinical guidelines, and making high-stakes decisions under time pressure. Diagnostic errors remain a leading cause of preventable patient harm worldwide.
+Healthcare professionals face increasing cognitive load â€” managing complex patient histories, staying current with evolving clinical guidelines, and making high-stakes decisions under time pressure. Diagnostic errors remain a leading cause of preventable patient harm worldwide.
 
-**MedIntel's vision** is to reduce that burden by putting a structured, evidence-informed AI assistant in every consulting room — one that surfaces relevant differentials, flags critical warning signs, and organizes clinical reasoning in a transparent, auditable way.
+**MedIntel's vision** is to reduce that burden by putting a structured, evidence-informed AI assistant in every consulting room â€” one that surfaces relevant differentials, flags critical warning signs, and organizes clinical reasoning in a transparent, auditable way.
 
-We believe AI in healthcare must be explainable, trustworthy, and deeply collaborative with the clinician — not a black box that replaces human expertise, but a reliable second opinion that enhances it.
+We believe AI in healthcare must be explainable, trustworthy, and deeply collaborative with the clinician â€” not a black box that replaces human expertise, but a reliable second opinion that enhances it.
 
 ---
 
@@ -75,7 +85,7 @@ MedIntel is being designed around a narrow clinical decision-support role rather
 | Reproducible engineering workflow | Docker Compose, a digest-pinned backend image, and a validated dependency lock are used |
 | Human oversight | AI output is parsed and safety-validated, and doctor review remains mandatory |
 
-Features such as the doctor-facing frontend, application-level PostgreSQL persistence, authentication, broader knowledge-base validation, report workflows, and clinical validation remain later work.
+The clinician-facing assessment frontend and local single-clinician authentication boundary are implemented. Application-level production patient-data persistence, broader knowledge-base validation, complete report workflows, production IAM, and clinical validation remain later work.
 
 ---
 
@@ -103,8 +113,9 @@ Features such as the doctor-facing frontend, application-level PostgreSQL persis
 
 ### Planned
 
+- Further clinician-facing patient and report workflow expansion
 - Application-level PostgreSQL persistence
-- Authentication and production access-control integration
+- Production IAM, audit logging, and deployment access-control integration
 - Broader clinical validation and model evaluation
 
 - Patient management and longitudinal records
@@ -182,7 +193,7 @@ flowchart LR
 ```mermaid
 graph TB
     subgraph Frontend["Frontend"]
-        FE[Phase 5 Placeholder]
+        FE[React Clinician Assessment UI]
     end
 
     subgraph Backend["Backend - FastAPI"]
@@ -215,7 +226,7 @@ The currently verified backend and local-AI path runs through Docker Compose.
 
 The PostgreSQL container is available as infrastructure, but application-level clinical persistence has **not yet been established**.
 
-The frontend Docker service is now serving the Phase 5 UI and workflow integration for the clinician-facing prototype.
+The frontend Docker service now serves the clinician-facing Phase 8 assessment interface through production Nginx; broader patient and report workflows remain incomplete.
 
 ---
 
@@ -232,7 +243,7 @@ The frontend Docker service is now serving the Phase 5 UI and workflow integrati
 | Containerization | Docker Compose | Implemented |
 | Backend Dependency Reproducibility | `backend/constraints.txt` | Implemented |
 | Database Infrastructure | PostgreSQL 15 Alpine | Container available; application persistence pending |
-| Frontend | React + TypeScript target | Phase 5 pending |
+| Frontend | React + TypeScript + Nginx | Phase 8 assessment workflow implemented |
 | Version Control | Git + GitHub | Implemented |
 
 ### Runtime Reproducibility
@@ -268,7 +279,7 @@ MedIntel/
 |   `-- constraints.txt
 |-- frontend/
 |   |-- .gitkeep
-|   `-- Dockerfile          # Phase 5 placeholder
+|   `-- Dockerfile          # React + TypeScript clinician UI
 |-- prompts/
 |   `-- clinical_reasoning_v1.txt
 |-- docs/
@@ -344,7 +355,7 @@ Current Compose services:
 - `medgemma` - local llama.cpp inference server
 - `backend` - FastAPI API
 - `db` - PostgreSQL infrastructure
-- `frontend` - Phase 5 placeholder container
+- `frontend` - production Nginx container serving the clinician-facing React UI
 
 MedGemma may require several minutes to load on CPU-only development machines.
 
@@ -358,7 +369,7 @@ After the backend starts:
 
 ### Current Limitations
 
-- The frontend service does not yet contain the doctor-facing React application.
+- The frontend contains the clinician-facing React assessment application; broader patient and report workflows remain incomplete.
 - PostgreSQL is running as infrastructure, but application-level patient persistence is not yet claimed.
 - The local MedGemma prototype is an engineering integration and has not itself established clinical efficacy or regulatory validation.
 
@@ -425,7 +436,7 @@ chore:    Maintenance
 | Docker backend / MedGemma integration | Complete |
 | Reproducible backend Docker environment | Complete |
 | Backend unit and integration test suite | Complete |
-| Doctor-facing frontend | Phase 5 - Pending |
+| Clinician-facing assessment frontend | Phase 8 - Implemented |
 | Knowledge-base expansion | In Progress |
 | PostgreSQL application persistence | Pending |
 | Authentication / access control integration | Pending |
@@ -482,7 +493,7 @@ MedIntel treats clinical safety, privacy, and clinician oversight as first-order
 - Doctor review remains mandatory.
 - MedIntel does not autonomously diagnose, prescribe, order medication, or determine disposition.
 - PostgreSQL infrastructure is present, but production patient-data persistence and its security controls remain future work.
-- Authentication, audit logging, deployment hardening, access control, retention policy, and regulatory compliance must be completed before any production clinical use.
+- Local single-clinician authentication and bounded deployment hardening are implemented for the research prototype. Production IAM, audit logging, retention policy, regulatory compliance, and production-clinical security validation remain required before any clinical deployment.
 
 The existing prototype and engineering tests should not be interpreted as evidence of clinical validation, regulatory approval, or production readiness.
 
@@ -541,12 +552,12 @@ For inquiries related to:
 
 ---
 
-*MedIntel is being built with the conviction that AI can make healthcare smarter, safer, and more equitable — one clinical decision at a time.*
+*MedIntel is being built with the conviction that AI can make healthcare smarter, safer, and more equitable â€” one clinical decision at a time.*
 
 *Every line of code here is a step toward a future where no doctor has to face a complex case alone.*
 
 ---
 
-**MedIntel** · AI-Powered Clinical Decision Support · Version 1 (MVP) · MIT License
+**MedIntel** Â· AI-Powered Clinical Decision Support Â· Version 1 (MVP) Â· MIT License
 
 </div>
