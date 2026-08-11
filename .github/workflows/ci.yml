@@ -37,7 +37,7 @@ jobs:
 
       - name: Run authentication regression tests
         run: |
-          python -m pytest backend/tests/test_auth.py -q
+          python -m unittest discover -s backend/tests -p "test_auth.py" -v
 
   frontend:
     name: Frontend validation
@@ -78,10 +78,14 @@ jobs:
       JWT_SECRET: phase8-ci-only-jwt-secret-not-runtime
       CLINICIAN_USERNAME: ci-clinician
       CLINICIAN_PASSWORD_HASH: ci-placeholder-not-runtime
+      MEDGEMMA_MODEL_PATH: /tmp/medgemma-ci-placeholder
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Prepare CI Compose environment
+        run: cp .env.example .env
 
       - name: Validate Compose
         run: docker compose config -q
