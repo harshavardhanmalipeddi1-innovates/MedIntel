@@ -17,6 +17,7 @@ from backend.app.api.verification import router as verification_router
 from backend.app.api.treatment import router as treatment_router
 from backend.app.api.workflow import router as workflow_router
 from backend.app.api.assessment import router as assessment_router
+from backend.app.api.patient_encounter import router as patient_encounter_router
 
 
 app = FastAPI(title="MedIntel API", version="1.0")
@@ -50,3 +51,4 @@ app.include_router(verification_router, prefix="/api/v1/clinical")
 app.include_router(treatment_router, prefix="/api/v1/clinical")
 app.include_router(workflow_router, prefix="/api/v1/clinical")
 app.include_router(assessment_router, prefix="/api/v1/clinical")
+app.include_router(patient_encounter_router, prefix="/api/v1/clinical")

@@ -111,3 +111,124 @@ export async function runVerifiedSyntheticWorkflow(): Promise<WorkflowResponse> 
     window.clearTimeout(timeout);
   }
 }
+
+export type PatientRecord = {
+  id: string;
+  first_name: string;
+  last_name: string;
+  date_of_birth: string;
+  gender: string;
+  medical_history_summary?: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type EncounterRecord = {
+  id: string;
+  patient_id: string;
+  doctor_id: string;
+  symptoms: string[];
+  history?: string;
+  vitals: Record<string, unknown>;
+  physical_examination?: string;
+  created_at: string;
+  updated_at: string;
+  ai_prediction_results?: Record<string, unknown>;
+  ai_reasoning_results?: Record<string, unknown>;
+  ai_verification_results?: Record<string, unknown>;
+  ai_treatment_draft?: Record<string, unknown>;
+  doctor_confirmed_outcome?: Record<string, unknown>;
+};
+
+export async function createPatient(
+  patient: Omit<PatientRecord, "id" | "created_at" | "updated_at">,
+): Promise<PatientRecord> {
+  const response = await fetch("/api/v1/clinical/patients", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(patient),
+  });
+
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(`Create patient failed (${response.status}): ${detail}`);
+  }
+
+  return (await response.json()) as PatientRecord;
+}
+
+export async function getPatient(
+  patientId: string,
+): Promise<PatientRecord> {
+  const response = await fetch(`/api/v1/clinical/patients/${patientId}`);
+
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(`Get patient failed (${response.status}): ${detail}`);
+  }
+
+  return (await response.json()) as PatientRecord;
+}
+
+export async function getPatients(): Promise<PatientRecord[]> {
+  const response = await fetch("/api/v1/clinical/patients");
+
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(`Get patients failed (${response.status}): ${detail}`);
+  }
+
+  return (await response.json()) as PatientRecord[];
+}
+
+export async function updatePatient(
+  patientId: string,
+  update: Partial<Omit<PatientRecord, "id" | "created_at" | "updated_at">>,
+): Promise<PatientRecord> {
+  const response = await fetch(`/api/v1/clinical/patients/${patientId}`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(update),
+  });
+
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(`Update patient failed (${response.status}): ${detail}`);
+  }
+
+  return (await response.json()) as PatientRecord;
+}
+
+export async function createEncounter(
+  encounter: Omit<EncounterRecord, "id" | "created_at" | "updated_at">,
+): Promise<EncounterRecord> {
+  const response = await fetch("/api/v1/clinical/encounters", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(encounter),
+  });
+
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(`Create encounter failed (${response.status}): ${detail}`);
+  }
+
+  return (await response.json()) as EncounterRecord;
+}
+
+export async function getEncounter(encounterId: string): Promise<EncounterRecord> {
+  const response = await fetch(`/api/v1/clinical/encounters/${encounterId}`);
+
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(`Get encounter failed (${response.status}): ${detail}`);
+  }
+
+  return (await response.json()) as EncounterRecord;
+}
