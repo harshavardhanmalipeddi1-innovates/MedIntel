@@ -154,11 +154,11 @@ def test_feature_vector_is_built_from_prepared_context():
     )
 
 
-def test_prepare_endpoint_returns_model_context():
+def test_prepare_endpoint_returns_model_context(authenticated_client):
     service = _service()
     initial = _valid_initial(service)
 
-    response = client.post(
+    response = authenticated_client.post(
         "/api/v1/clinical/assessment/prepare",
         json={
             "age": 45,
@@ -178,8 +178,8 @@ def test_prepare_endpoint_returns_model_context():
     assert data["eligible_question_count"] == 84
 
 
-def test_prepare_endpoint_rejects_invalid_initial():
-    response = client.post(
+def test_prepare_endpoint_rejects_invalid_initial(authenticated_client):
+    response = authenticated_client.post(
         "/api/v1/clinical/assessment/prepare",
         json={
             "age": 45,

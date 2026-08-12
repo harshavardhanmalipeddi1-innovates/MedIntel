@@ -259,7 +259,7 @@ def test_ai_highlighted_concern_is_not_deterministic_red_flag():
     assert ai_step.is_red_flag is False
     assert ai_step.requires_doctor_review is True
 
-def test_verification_api():
+def test_verification_api(authenticated_client):
     from fastapi.testclient import TestClient
     from backend.app.main import app
 
@@ -295,7 +295,7 @@ def test_verification_api():
         },
     }
 
-    response = client.post(
+    response = authenticated_client.post(
         "/api/v1/clinical/verification",
         json=payload,
     )
