@@ -6,7 +6,7 @@ from backend.app.main import app
 client = TestClient(app)
 
 
-def test_workflow_api_accepts_valid_patient_context():
+def test_workflow_api_accepts_valid_patient_context(authenticated_client):
     payload = {
         "patient_context": {
             "age": 45,
@@ -18,7 +18,7 @@ def test_workflow_api_accepts_valid_patient_context():
         }
     }
 
-    response = client.post(
+    response = authenticated_client.post(
         "/api/v1/clinical/workflow",
         json=payload,
     )
@@ -41,7 +41,7 @@ def test_workflow_api_route_exists():
     assert "post" in paths["/api/v1/clinical/workflow"]
 
 
-def test_workflow_response_preserves_doctor_review_safety():
+def test_workflow_response_preserves_doctor_review_safety(authenticated_client):
     payload = {
         "patient_context": {
             "age": 45,
@@ -50,7 +50,7 @@ def test_workflow_response_preserves_doctor_review_safety():
         }
     }
 
-    response = client.post(
+    response = authenticated_client.post(
         "/api/v1/clinical/workflow",
         json=payload,
     )

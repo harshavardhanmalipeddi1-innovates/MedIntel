@@ -200,7 +200,7 @@ def test_treatment_schema_rejects_prescription_field():
         )
 
 
-def test_treatment_draft_api():
+def test_treatment_draft_api(authenticated_client):
     from fastapi.testclient import TestClient
     from backend.app.main import app
 
@@ -234,7 +234,7 @@ def test_treatment_draft_api():
         },
     }
 
-    response = client.post(
+    response = authenticated_client.post(
         "/api/v1/clinical/treatment-draft",
         json=payload,
     )

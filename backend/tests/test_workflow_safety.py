@@ -104,8 +104,8 @@ def test_workflow_response_requires_doctor_review():
     assert response.doctor_approval_status == "PENDING"
 
 
-def test_workflow_api_rejects_unknown_request_fields():
-    response = client.post(
+def test_workflow_api_rejects_unknown_request_fields(authenticated_client):
+    response = authenticated_client.post(
         "/api/v1/clinical/workflow",
         json={
             "patient_context": {

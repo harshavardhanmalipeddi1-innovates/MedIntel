@@ -63,16 +63,17 @@ def test_workflow_api_route_is_registered():
     assert "post" in paths["/api/v1/clinical/workflow"]
 
 
-def test_workflow_api_requires_patient_context():
-    client = TestClient(app)
-
-    response = client.post(
+def test_workflow_api_requires_patient_context(
+    authenticated_client,
+):
+    response = authenticated_client.post(
         "/api/v1/clinical/workflow",
         json={},
     )
 
-    # patient_context has a default empty dictionary,
-    # so the request itself should be accepted by the schema.
+    # Authentication is required by the Phase 8 hardened boundary.
+    # Once authenticated, patient_context still defaults to an empty
+    # dictionary, so the request reaches the workflow/schema layer.
     assert response.status_code in {200, 400}
 @pytest.mark.asyncio
 async def test_workflow_service_orchestrates_all_stages(monkeypatch):

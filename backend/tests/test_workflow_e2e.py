@@ -12,7 +12,9 @@ client = TestClient(app)
 # 4.3.1 — Realistic Clinical Input
 # ============================================================
 
-def test_e2e_workflow_accepts_realistic_clinical_input():
+def test_e2e_workflow_accepts_realistic_clinical_input(
+    authenticated_client,
+):
     payload = {
         "patient_context": {
             "age": 45,
@@ -31,7 +33,7 @@ def test_e2e_workflow_accepts_realistic_clinical_input():
         }
     }
 
-    response = client.post(
+    response = authenticated_client.post(
         "/api/v1/clinical/workflow",
         json=payload,
     )
@@ -44,7 +46,9 @@ def test_e2e_workflow_accepts_realistic_clinical_input():
 # 4.3.2 — Complete Workflow Response Structure
 # ============================================================
 
-def test_e2e_workflow_response_structure():
+def test_e2e_workflow_response_structure(
+    authenticated_client,
+):
     payload = {
         "patient_context": {
             "age": 45,
@@ -53,7 +57,7 @@ def test_e2e_workflow_response_structure():
         }
     }
 
-    response = client.post(
+    response = authenticated_client.post(
         "/api/v1/clinical/workflow",
         json=payload,
     )
@@ -235,7 +239,9 @@ def test_e2e_workflow_enforces_doctor_review(monkeypatch):
 # 4.3.5 — No Autonomous Treatment Fields
 # ============================================================
 
-def test_e2e_workflow_contains_no_autonomous_action_fields():
+def test_e2e_workflow_contains_no_autonomous_action_fields(
+    authenticated_client,
+):
     payload = {
         "patient_context": {
             "age": 45,
@@ -244,7 +250,7 @@ def test_e2e_workflow_contains_no_autonomous_action_fields():
         }
     }
 
-    response = client.post(
+    response = authenticated_client.post(
         "/api/v1/clinical/workflow",
         json=payload,
     )
@@ -360,12 +366,14 @@ def test_e2e_workflow_openapi_contract():
 # 4.3.8 — Missing Information Does Not Bypass Safety
 # ============================================================
 
-def test_e2e_workflow_missing_information_keeps_doctor_review():
+def test_e2e_workflow_missing_information_keeps_doctor_review(
+    authenticated_client,
+):
     payload = {
         "patient_context": {}
     }
 
-    response = client.post(
+    response = authenticated_client.post(
         "/api/v1/clinical/workflow",
         json=payload,
     )

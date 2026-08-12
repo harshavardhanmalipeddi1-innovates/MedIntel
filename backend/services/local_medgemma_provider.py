@@ -1,4 +1,4 @@
-﻿import asyncio
+import asyncio
 import logging
 
 import httpx
@@ -51,7 +51,7 @@ class LocalMedGemmaProvider(ReasoningProvider):
                 },
             ],
             "temperature": 0.0,
-            "max_tokens": 512,
+            "max_tokens": 1024,
             "response_format": {
                 "type": "json_schema",
                 "json_schema": {
@@ -75,11 +75,18 @@ class LocalMedGemmaProvider(ReasoningProvider):
                     data = response.json()
 
                 try:
-                    content = data["choices"][0]["message"]["content"]
+                    choice = data["choices"][0]
+                    content = choice["message"]["content"]
+                    finish_reason = choice.get("finish_reason")
                 except (KeyError, IndexError, TypeError) as exc:
                     raise ReasoningInvalidResponseError(
                         "Malformed response structure from Local MedGemma."
                     ) from exc
+
+                if finish_reason == "length":
+                    raise ReasoningInvalidResponseError(
+                        "Local MedGemma response hit the generation token limit."
+                    )
 
                 if not isinstance(content, str) or not content.strip():
                     raise ReasoningInvalidResponseError(

@@ -338,7 +338,7 @@ export async function runClinicalWorkflow(
         patient_context: patientContext,
       }),
     },
-    720_000,
+    1_300_000,
   );
 }
 

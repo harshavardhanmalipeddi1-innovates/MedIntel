@@ -21,6 +21,35 @@ class ContextBuilder:
 
     _evidence_metadata_cache: dict[str, dict[str, Any]] | None = None
 
+    # Fields below are omitted only from the model-facing copy of
+    # patient_context. The original request remains untouched.
+    #
+    # These values are ML/questionnaire bookkeeping rather than new
+    # clinician-observed findings.
+    _REASONING_PATIENT_OMIT_FIELDS = {
+        "AGE",
+        "SEX_MALE_CODE",
+        "NONINITIAL_EVIDENCE_COUNT",
+        "QUESTIONNAIRE_COMPLETION_FRACTION",
+        "INITIAL_EVIDENCE_ONLY",
+        "CONSULTATION_STAGE_CODE",
+        "eligible_question_codes",
+    }
+
+    # Bounded clinical KB projection used only for local reasoning.
+    #
+    # Candidate identity and probabilities remain separate and unchanged.
+    # Full DiseaseKnowledge remains attached to the original reasoning
+    # request for deterministic downstream services.
+    _REASONING_KNOWLEDGE_LIST_LIMITS = {
+        "common_symptoms": 4,
+        "associated_symptoms": 3,
+        "risk_factors": 4,
+        "physical_examination": 3,
+        "recommended_investigations": 3,
+        "red_flags": 4,
+    }
+
     @classmethod
     def _load_evidence_metadata(cls) -> dict[str, dict[str, Any]]:
         if cls._evidence_metadata_cache is not None:
@@ -196,6 +225,60 @@ class ContextBuilder:
         }
 
     @classmethod
+    def _compact_patient_context(
+        cls,
+        patient_context: dict[str, Any],
+    ) -> dict[str, Any]:
+        """
+        Remove model/eligibility bookkeeping from only the
+        MedGemma-facing patient-context copy.
+
+        All other patient fields are preserved so future clinician
+        history, vitals, examination, or other clinical information is
+        not accidentally discarded.
+        """
+        return {
+            key: value
+            for key, value in patient_context.items()
+            if key not in cls._REASONING_PATIENT_OMIT_FIELDS
+        }
+
+    @classmethod
+    def _compact_reasoning_knowledge(
+        cls,
+        knowledge: Any,
+    ) -> dict[str, Any]:
+        """
+        Build a bounded clinical projection for local reasoning.
+
+        Generic disease description and treatment contraindication
+        metadata are omitted from this reasoning-only projection.
+        The source DiseaseKnowledge object is never mutated.
+        """
+        full_knowledge = knowledge.model_dump()
+
+        compact: dict[str, Any] = {}
+
+        for field, limit in (
+            cls._REASONING_KNOWLEDGE_LIST_LIMITS.items()
+        ):
+            value = full_knowledge.get(field)
+
+            if not isinstance(value, list):
+                continue
+
+            bounded = [
+                item
+                for item in value
+                if item not in (None, "")
+            ][:limit]
+
+            if bounded:
+                compact[field] = bounded
+
+        return compact
+
+    @classmethod
     def build_context(
         cls,
         request: ClinicalReasoningRequest,
@@ -204,7 +287,7 @@ class ContextBuilder:
         candidates = request.differential[:max_candidates]
 
         context_data = {
-            "Patient_Context": request.patient_context,
+            "Patient_Context": cls._compact_patient_context(request.patient_context),
             "Semantic_Evidence_Context": cls._build_semantic_evidence(
                 request.patient_context
             ),
@@ -224,11 +307,13 @@ class ContextBuilder:
             if candidate.knowledge:
                 candidate_dict["Knowledge_Available"] = True
                 candidate_dict["Knowledge"] = (
-                    candidate.knowledge.model_dump()
+                    cls._compact_reasoning_knowledge(
+                        candidate.knowledge
+                    )
                 )
 
             context_data[
                 "Ranked_Differential_Candidates"
             ].append(candidate_dict)
 
-        return json.dumps(context_data, indent=2)
+        return json.dumps(context_data, ensure_ascii=False, separators=(",", ":"))
